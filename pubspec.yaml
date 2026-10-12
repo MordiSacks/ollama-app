@@ -47,7 +47,7 @@ dependencies:
   volume_controller: ^3.3.1
   universal_html: ^2.2.4
   pwa_install: ^0.0.5
-  syncfusion_flutter_pdf: ">=27.1.48 <40.0.0"
+  syncfusion_flutter_pdf: ^31.1.19
 
 dev_dependencies:
   flutter_test:

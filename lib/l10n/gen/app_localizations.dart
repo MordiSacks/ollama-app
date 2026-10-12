@@ -994,7 +994,7 @@ abstract class AppLocalizations {
   /// Shown when a picked file type cannot be read
   ///
   /// In en, this message translates to:
-  /// **'{name} can't be attached. Text, code, PDF and image files are supported.'**
+  /// **'{name} can\'t be attached. Text, code, PDF and image files are supported.'**
   String attachmentUnsupported(String name);
 
   /// Shown when a text attachment was cut
@@ -1036,7 +1036,7 @@ abstract class AppLocalizations {
   /// Shown when speech recognition cannot start
   ///
   /// In en, this message translates to:
-  /// **'Speech recognition isn't available on this device.'**
+  /// **'Speech recognition isn\'t available on this device.'**
   String get dictationUnavailable;
 
   /// Tooltip of the button that stops the running answer

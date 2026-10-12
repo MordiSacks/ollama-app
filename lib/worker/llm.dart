@@ -135,15 +135,27 @@ Future<List<String>> listOpenAiModels(
 /// Streams the answer for [messages]. Throws [LlmException] with a readable
 /// message on failure. When [cancelGeneration] is called the stream simply
 /// ends; check [generationCancelled] to tell the difference.
+///
+/// Only a [cancellable] request is stopped by [cancelGeneration]; background
+/// requests (titles, punctuation) leave the cancellation state alone so they
+/// can't interfere with the answer that is currently streaming.
 Stream<LlmDelta> chatStream({
   required String model,
   required List<LlmMessage> messages,
   String? provider,
+  bool cancellable = true,
 }) async* {
   provider ??= modelProvider;
-  _cancelRequested = false;
   final client = http.Client();
-  _activeClient = client;
+  if (cancellable) {
+    _cancelRequested = false;
+    _activeClient = client;
+  }
+  bool cancelled() => cancellable && _cancelRequested;
+  void release() {
+    client.close();
+    if (identical(_activeClient, client)) _activeClient = null;
+  }
 
   final bool openAi = provider == providerOpenAi;
   final Uri uri;
@@ -153,6 +165,7 @@ Stream<LlmDelta> chatStream({
   if (openAi) {
     final base = openAiBaseUrl;
     if (base == null) {
+      release();
       throw const LlmException("No OpenAI-compatible server is configured.");
     }
     uri = Uri.parse("$base/chat/completions");
@@ -164,6 +177,7 @@ Stream<LlmDelta> chatStream({
     };
   } else {
     if (host == null) {
+      release();
       throw const LlmException("No Ollama host is configured.");
     }
     uri = Uri.parse("$host/api/chat");
@@ -190,11 +204,11 @@ Stream<LlmDelta> chatStream({
   try {
     response = await client.send(request).timeout(firstResponseTimeout);
   } on TimeoutException {
-    client.close();
+    release();
     throw LlmException(_firstTimeoutMessage());
   } catch (e) {
-    client.close();
-    if (_cancelRequested) return;
+    release();
+    if (cancelled()) return;
     throw LlmException("Couldn't reach ${uri.host}:${uri.port} ($e)");
   }
 
@@ -203,7 +217,7 @@ Stream<LlmDelta> chatStream({
     try {
       text = await response.stream.bytesToString().timeout(idleTimeout);
     } catch (_) {}
-    client.close();
+    release();
     throw LlmException(
         "Server returned HTTP ${response.statusCode}: ${_extractError(text)}");
   }
@@ -259,11 +273,10 @@ Stream<LlmDelta> chatStream({
   } on LlmException {
     rethrow;
   } catch (e) {
-    if (_cancelRequested) return;
+    if (cancelled()) return;
     throw LlmException("Connection lost: $e");
   } finally {
-    client.close();
-    if (identical(_activeClient, client)) _activeClient = null;
+    release();
   }
 }
 
@@ -274,8 +287,11 @@ Future<String> chatComplete({
   String? provider,
 }) async {
   final buffer = StringBuffer();
-  await for (final delta
-      in chatStream(model: model, messages: messages, provider: provider)) {
+  await for (final delta in chatStream(
+      model: model,
+      messages: messages,
+      provider: provider,
+      cancellable: false)) {
     buffer.write(delta.content);
   }
   return buffer.toString();
