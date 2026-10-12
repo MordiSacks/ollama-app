@@ -323,7 +323,7 @@ class _ScreenSettingsInterfaceState extends State<ScreenSettingsInterface> {
                               }
                               return value;
                             }
-                          }.call()} x 30s = ${((prefs!.getDouble("timeoutMultiplier") ?? 1) * 30).round()}s ${secondsBeautify((prefs!.getDouble("timeoutMultiplier") ?? 1) * 30)}"),
+                          }.call()} x 120s = ${((prefs!.getDouble("timeoutMultiplier") ?? 1) * 120).round()}s ${secondsBeautify((prefs!.getDouble("timeoutMultiplier") ?? 1) * 120)}"),
                       titleDivider(context: context),
                       toggle(
                           context,

@@ -29,7 +29,9 @@ android {
     }
 
     defaultConfig {
-        applicationId = "com.freakurl.apps.ollama"
+        // Own id so this fork installs next to the original app (whose
+        // signing key we don't have). Move chats over with Settings > Export.
+        applicationId = "com.freakurl.apps.ollama.fork"
         // You can update the following values to match your application needs.
         // For more information, see: https://flutter.dev/to/review-gradle-config.
         minSdk = flutter.minSdkVersion
@@ -39,17 +41,31 @@ android {
     }
 
     signingConfigs {
-        create("release") {
-            keyAlias = keystoreProperties["keyAlias"] as String
-            keyPassword = keystoreProperties["keyPassword"] as String
-            storeFile = keystoreProperties["storeFile"]?.let { file(it) }
-            storePassword = keystoreProperties["storePassword"] as String
+        // Stable test key committed on purpose: every CI build gets the same
+        // signature, so new APKs install as updates and keep your chats.
+        create("forkTest") {
+            storeFile = file("fork-test.keystore")
+            storePassword = "android"
+            keyAlias = "androiddebugkey"
+            keyPassword = "android"
+        }
+        if (keystorePropertiesFile.exists()) {
+            create("release") {
+                keyAlias = keystoreProperties["keyAlias"] as String
+                keyPassword = keystoreProperties["keyPassword"] as String
+                storeFile = keystoreProperties["storeFile"]?.let { file(it) }
+                storePassword = keystoreProperties["storePassword"] as String
+            }
         }
     }
 
     buildTypes {
         release {
-            signingConfig = signingConfigs.getByName("release")
+            // Without a private keystore (key.properties) use the test key.
+            signingConfig = if (keystorePropertiesFile.exists())
+                signingConfigs.getByName("release")
+            else
+                signingConfigs.getByName("forkTest")
         }
     }
 }

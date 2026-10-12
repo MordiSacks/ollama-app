@@ -12,6 +12,7 @@ import 'worker/setter.dart';
 import 'package:ollama_app/l10n/gen/app_localizations.dart';
 
 import 'settings/behavior.dart';
+import 'settings/openai.dart';
 import 'settings/interface.dart';
 import 'settings/voice.dart';
 import 'settings/export.dart';
@@ -593,7 +594,9 @@ class _ScreenSettingsState extends State<ScreenSettings> {
                                                         fontFamily:
                                                             "monospace"))
                                               ],
-                                            ))))
+                                            )))),
+                          const SizedBox(height: 16),
+                          const OpenAiEndpointField()
                         ]);
                         var column2 =
                             Column(mainAxisSize: MainAxisSize.min, children: [

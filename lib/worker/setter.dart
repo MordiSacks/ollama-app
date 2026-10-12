@@ -10,6 +10,7 @@ import '../main.dart';
 import 'sender.dart';
 import 'theme.dart';
 import 'clients.dart';
+import 'llm.dart';
 
 import 'package:ollama_app/l10n/gen/app_localizations.dart';
 
@@ -24,6 +25,7 @@ void setModel(BuildContext context, Function setState) {
   List<String> models = [];
   List<String> modelsReal = [];
   List<bool> modal = [];
+  List<String> providers = [];
   int usedIndex = -1;
   int oldIndex = -1;
   int addIndex = -1;
@@ -33,17 +35,45 @@ void setModel(BuildContext context, Function setState) {
   setState(() {});
   void load() async {
     try {
-      var list = await ollamaClient.listModels().timeout(Duration(
-          seconds:
-              (10.0 * (prefs!.getDouble("timeoutMultiplier") ?? 1.0)).round()));
-      for (var i = 0; i < list.models!.length; i++) {
-        var details = await ollamaClient.showModelInfo(
-            request: llama.ModelInfoRequest(model: list.models![i].model!));
-        models.add(list.models![i].model!.split(":")[0]);
-        modelsReal.add(list.models![i].model!);
-        modal.add((list.models![i].details!.families ?? []).contains("clip") ||
-            (details.capabilities ?? []).contains(llama.Capability.vision));
+      bool anyServerReachable = false;
+      if (host != null) {
+        try {
+          var list = await ollamaClient.listModels().timeout(Duration(
+              seconds: (10.0 * (prefs!.getDouble("timeoutMultiplier") ?? 1.0))
+                  .round()));
+          anyServerReachable = true;
+          for (var i = 0; i < list.models!.length; i++) {
+            bool vision = (list.models![i].details!.families ?? [])
+                .contains("clip");
+            try {
+              var details = await ollamaClient.showModelInfo(
+                  request:
+                      llama.ModelInfoRequest(model: list.models![i].model!));
+              vision = vision ||
+                  (details.capabilities ?? [])
+                      .contains(llama.Capability.vision);
+            } catch (_) {}
+            models.add(list.models![i].model!.split(":")[0]);
+            modelsReal.add(list.models![i].model!);
+            modal.add(vision);
+            providers.add(providerOllama);
+          }
+        } catch (_) {}
       }
+      if (openAiConfigured) {
+        try {
+          var list = await listOpenAiModels();
+          anyServerReachable = true;
+          for (var id in list) {
+            models.add(id);
+            modelsReal.add(id);
+            // capabilities are unknown for OpenAI-compatible servers
+            modal.add(true);
+            providers.add(providerOpenAi);
+          }
+        } catch (_) {}
+      }
+      if (!anyServerReachable) throw Exception("no server reachable");
 
       addIndex = models.length;
       // ignore: use_build_context_synchronously
@@ -51,9 +81,10 @@ void setModel(BuildContext context, Function setState) {
       // ignore: use_build_context_synchronously
       modelsReal.add(AppLocalizations.of(context)!.modelDialogAddModel);
       modal.add(false);
+      providers.add(providerOllama);
 
       for (var i = 0; i < modelsReal.length; i++) {
-        if (modelsReal[i] == model) {
+        if (modelsReal[i] == model && providers[i] == modelProvider) {
           usedIndex = i;
           oldIndex = usedIndex;
         }
@@ -99,7 +130,9 @@ void setModel(BuildContext context, Function setState) {
           if (!loaded) return;
           loaded = false;
           bool preload = false;
-          if (usedIndex >= 0 && modelsReal[usedIndex] != model) {
+          if (usedIndex >= 0 &&
+              (modelsReal[usedIndex] != model ||
+                  providers[usedIndex] != modelProvider)) {
             preload = true;
             if (prefs!.getBool("resetOnModelSelect") ??
                 true && allowMultipleChats) {
@@ -110,15 +143,19 @@ void setModel(BuildContext context, Function setState) {
           model = (usedIndex >= 0) ? modelsReal[usedIndex] : null;
           chatAllowed = !(model == null);
           multimodal = (usedIndex >= 0) ? modal[usedIndex] : false;
+          modelProvider =
+              (usedIndex >= 0) ? providers[usedIndex] : providerOllama;
           if (model != null) {
             prefs?.setString("model", model!);
           } else {
             prefs?.remove("model");
           }
           prefs?.setBool("multimodal", multimodal);
+          prefs?.setString("modelProvider", modelProvider);
 
           if (model != null &&
               preload &&
+              modelProvider == providerOllama &&
               int.parse(prefs!.getString("keepAlive") ?? "300") != 0 &&
               (prefs!.getBool("preloadModel") ?? true)) {
             setLocalState(() {});
@@ -217,7 +254,10 @@ void setModel(BuildContext context, Function setState) {
                                         ? null
                                         : (addIndex == index)
                                             ? const Icon(Icons.add_rounded)
-                                            : ((recommendedModels
+                                            : (providers[index] ==
+                                                    providerOpenAi)
+                                                ? const Icon(Icons.dns_rounded)
+                                                : ((recommendedModels
                                                     .contains(models[index]))
                                                 ? const Icon(Icons.star_rounded)
                                                 : ((modal[index])
@@ -543,7 +583,9 @@ void addModel(BuildContext context, Function setState) async {
       }
       return;
     }
+    modelProvider = providerOllama;
     prefs?.setString("model", model!);
+    prefs?.setString("modelProvider", modelProvider);
     prefs?.setBool("multimodal", multimodal);
     setState(() {
       chatAllowed = true;
@@ -568,21 +610,33 @@ void saveChat(String uuid, Function setState) async {
   if (index == -1) return;
   List<Map<String, String>> history = [];
   for (var i = 0; i < messages.length; i++) {
-    if ((jsonDecode(jsonEncode(messages[i])) as Map).containsKey("text")) {
+    final message = messages[i];
+    final role = (message.author == user) ? "user" : "assistant";
+    if (message is types.TextMessage) {
+      history.add({"role": role, "content": message.text});
+    } else if (message is types.FileMessage) {
       history.add({
-        "role": (messages[i].author == user) ? "user" : "assistant",
-        "content": jsonDecode(jsonEncode(messages[i]))["text"]
+        "role": role,
+        "type": "file",
+        "name": message.name,
+        "size": message.size.toString(),
+        "content": message.metadata?["text"]?.toString() ?? ""
       });
-    } else {
-      var uri = jsonDecode(jsonEncode(messages[i]))["uri"] as String;
-      String content = (uri.startsWith("data:image/png;base64,"))
-          ? uri.removePrefix("data:image/png;base64,")
-          : base64.encode(await File(uri).readAsBytes());
+    } else if (message is types.ImageMessage) {
+      var uri = message.uri;
+      String content;
+      try {
+        content = uri.startsWith("data:")
+            ? uri.substring(uri.indexOf(",") + 1)
+            : base64.encode(await File(uri).readAsBytes());
+      } catch (_) {
+        continue;
+      }
       history.add({
-        "role": (messages[i].author == user) ? "user" : "assistant",
+        "role": role,
         "type": "image",
-        "name": (messages[i] as types.ImageMessage).name,
-        "size": (messages[i] as types.ImageMessage).size.toString(),
+        "name": message.name,
+        "size": message.size.toString(),
         "content": content
       });
     }
@@ -630,6 +684,7 @@ void saveChat(String uuid, Function setState) async {
             jsonDecode((prefs!.getStringList("chats") ?? [])[index])["title"],
         "uuid": uuid,
         "model": model,
+        "provider": modelProvider,
         "messages": jsonEncode(history)
       }));
   prefs!.setStringList("chats", tmp);
@@ -652,6 +707,18 @@ void loadChat(String uuid, Function setState) {
   for (var i = 0; i < history.length; i++) {
     if (history[i]["role"] != "system") {
       if ((history[i] as Map).containsKey("type") &&
+          history[i]["type"] == "file") {
+        messages.insert(
+            0,
+            types.FileMessage(
+                author: (history[i]["role"] == "user") ? user : assistant,
+                id: const Uuid().v4(),
+                name: history[i]["name"] ?? "file",
+                size: int.tryParse(history[i]["size"] ?? "0") ?? 0,
+                mimeType: "text/plain",
+                uri: history[i]["name"] ?? "file",
+                metadata: {"text": history[i]["content"] ?? ""}));
+      } else if ((history[i] as Map).containsKey("type") &&
           history[i]["type"] == "image") {
         messages.insert(
             0,
@@ -671,7 +738,9 @@ void loadChat(String uuid, Function setState) {
       }
     }
   }
-  model = jsonDecode((prefs!.getStringList("chats") ?? [])[index])["model"];
+  var chat = jsonDecode((prefs!.getStringList("chats") ?? [])[index]);
+  model = chat["model"];
+  modelProvider = chat["provider"] ?? providerOllama;
   setState(() {});
 }
 

@@ -782,5 +782,99 @@
                 "description": "Version number of the app"
             }
         }
+    },
+    "attachFile": "Attach file",
+    "@attachFile": {
+        "description": "Button to attach any file to the next message"
+    },
+    "attachmentUnsupported": "{name} can't be attached. Text, code, PDF and image files are supported.",
+    "@attachmentUnsupported": {
+        "description": "Shown when a picked file type cannot be read",
+        "placeholders": {
+            "name": {
+                "type": "String"
+            }
+        }
+    },
+    "attachmentTruncated": "The file is very long and was shortened to fit.",
+    "@attachmentTruncated": {
+        "description": "Shown when a text attachment was cut"
+    },
+    "attachmentImageMaybeUnsupported": "The selected model may not support images.",
+    "@attachmentImageMaybeUnsupported": {
+        "description": "Shown when attaching an image to a model without vision"
+    },
+    "dictationStart": "Dictate",
+    "@dictationStart": {
+        "description": "Tooltip of the microphone button in the input field"
+    },
+    "dictationStop": "Stop dictation",
+    "@dictationStop": {
+        "description": "Tooltip of the microphone button while listening"
+    },
+    "dictationListening": "Listening...",
+    "@dictationListening": {
+        "description": "Input placeholder while dictating"
+    },
+    "dictationPermissionDenied": "Microphone access is needed for dictation.",
+    "@dictationPermissionDenied": {
+        "description": "Shown when microphone permission is denied"
+    },
+    "dictationUnavailable": "Speech recognition isn't available on this device.",
+    "@dictationUnavailable": {
+        "description": "Shown when speech recognition cannot start"
+    },
+    "stopGenerating": "Stop",
+    "@stopGenerating": {
+        "description": "Tooltip of the button that stops the running answer"
+    },
+    "retry": "Retry",
+    "@retry": {
+        "description": "Action to resend a message whose request failed"
+    },
+    "readAloud": "Read aloud",
+    "@readAloud": {
+        "description": "Tooltip of the speaker button below an answer"
+    },
+    "readAloudStop": "Stop reading",
+    "@readAloudStop": {
+        "description": "Tooltip of the speaker button while reading"
+    },
+    "copyMessage": "Copy",
+    "@copyMessage": {
+        "description": "Tooltip of the copy button below an answer"
+    },
+    "copiedToClipboard": "Copied to clipboard",
+    "@copiedToClipboard": {
+        "description": "Shown after copying an answer"
+    },
+    "noOpenAiHostSelected": "No OpenAI-compatible server set. Add one in the settings.",
+    "@noOpenAiHostSelected": {
+        "description": "Shown when sending to an OpenAI-compatible model without a server"
+    },
+    "settingsOpenAiHost": "OpenAI-compatible server (optional)",
+    "@settingsOpenAiHost": {
+        "description": "Label of the OpenAI-compatible server field"
+    },
+    "settingsOpenAiHostDescription": "For vLLM, LM Studio, llama.cpp or API proxies. Its models appear in the model picker.",
+    "@settingsOpenAiHostDescription": {
+        "description": "Helper text of the OpenAI-compatible server field"
+    },
+    "settingsOpenAiKeyTitle": "API key",
+    "@settingsOpenAiKeyTitle": {
+        "description": "Title of the API key dialog"
+    },
+    "settingsOpenAiKeyDescription": "Optional. Sent as a Bearer token to the OpenAI-compatible server.",
+    "@settingsOpenAiKeyDescription": {
+        "description": "Description of the API key dialog"
+    },
+    "settingsOpenAiConnected": "Connected, {count} models available",
+    "@settingsOpenAiConnected": {
+        "description": "Shown when the OpenAI-compatible server answered",
+        "placeholders": {
+            "count": {
+                "type": "String"
+            }
+        }
     }
 }

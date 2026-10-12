@@ -984,6 +984,132 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Ollama App v{version}'**
   String settingsVersion(String version);
+
+  /// Button to attach any file to the next message
+  ///
+  /// In en, this message translates to:
+  /// **'Attach file'**
+  String get attachFile;
+
+  /// Shown when a picked file type cannot be read
+  ///
+  /// In en, this message translates to:
+  /// **'{name} can't be attached. Text, code, PDF and image files are supported.'**
+  String attachmentUnsupported(String name);
+
+  /// Shown when a text attachment was cut
+  ///
+  /// In en, this message translates to:
+  /// **'The file is very long and was shortened to fit.'**
+  String get attachmentTruncated;
+
+  /// Shown when attaching an image to a model without vision
+  ///
+  /// In en, this message translates to:
+  /// **'The selected model may not support images.'**
+  String get attachmentImageMaybeUnsupported;
+
+  /// Tooltip of the microphone button in the input field
+  ///
+  /// In en, this message translates to:
+  /// **'Dictate'**
+  String get dictationStart;
+
+  /// Tooltip of the microphone button while listening
+  ///
+  /// In en, this message translates to:
+  /// **'Stop dictation'**
+  String get dictationStop;
+
+  /// Input placeholder while dictating
+  ///
+  /// In en, this message translates to:
+  /// **'Listening...'**
+  String get dictationListening;
+
+  /// Shown when microphone permission is denied
+  ///
+  /// In en, this message translates to:
+  /// **'Microphone access is needed for dictation.'**
+  String get dictationPermissionDenied;
+
+  /// Shown when speech recognition cannot start
+  ///
+  /// In en, this message translates to:
+  /// **'Speech recognition isn't available on this device.'**
+  String get dictationUnavailable;
+
+  /// Tooltip of the button that stops the running answer
+  ///
+  /// In en, this message translates to:
+  /// **'Stop'**
+  String get stopGenerating;
+
+  /// Action to resend a message whose request failed
+  ///
+  /// In en, this message translates to:
+  /// **'Retry'**
+  String get retry;
+
+  /// Tooltip of the speaker button below an answer
+  ///
+  /// In en, this message translates to:
+  /// **'Read aloud'**
+  String get readAloud;
+
+  /// Tooltip of the speaker button while reading
+  ///
+  /// In en, this message translates to:
+  /// **'Stop reading'**
+  String get readAloudStop;
+
+  /// Tooltip of the copy button below an answer
+  ///
+  /// In en, this message translates to:
+  /// **'Copy'**
+  String get copyMessage;
+
+  /// Shown after copying an answer
+  ///
+  /// In en, this message translates to:
+  /// **'Copied to clipboard'**
+  String get copiedToClipboard;
+
+  /// Shown when sending to an OpenAI-compatible model without a server
+  ///
+  /// In en, this message translates to:
+  /// **'No OpenAI-compatible server set. Add one in the settings.'**
+  String get noOpenAiHostSelected;
+
+  /// Label of the OpenAI-compatible server field
+  ///
+  /// In en, this message translates to:
+  /// **'OpenAI-compatible server (optional)'**
+  String get settingsOpenAiHost;
+
+  /// Helper text of the OpenAI-compatible server field
+  ///
+  /// In en, this message translates to:
+  /// **'For vLLM, LM Studio, llama.cpp or API proxies. Its models appear in the model picker.'**
+  String get settingsOpenAiHostDescription;
+
+  /// Title of the API key dialog
+  ///
+  /// In en, this message translates to:
+  /// **'API key'**
+  String get settingsOpenAiKeyTitle;
+
+  /// Description of the API key dialog
+  ///
+  /// In en, this message translates to:
+  /// **'Optional. Sent as a Bearer token to the OpenAI-compatible server.'**
+  String get settingsOpenAiKeyDescription;
+
+  /// Shown when the OpenAI-compatible server answered
+  ///
+  /// In en, this message translates to:
+  /// **'Connected, {count} models available'**
+  String settingsOpenAiConnected(String count);
 }
 
 class _AppLocalizationsDelegate extends LocalizationsDelegate<AppLocalizations> {

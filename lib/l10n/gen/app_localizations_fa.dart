@@ -481,4 +481,71 @@ class AppLocalizationsFa extends AppLocalizations {
   String settingsVersion(String version) {
     return 'Ollama App v$version';
   }
+
+  @override
+  String get attachFile => 'Attach file';
+
+  @override
+  String attachmentUnsupported(String name) {
+    return '$name can\'t be attached. Text, code, PDF and image files are supported.';
+  }
+
+  @override
+  String get attachmentTruncated => 'The file is very long and was shortened to fit.';
+
+  @override
+  String get attachmentImageMaybeUnsupported => 'The selected model may not support images.';
+
+  @override
+  String get dictationStart => 'Dictate';
+
+  @override
+  String get dictationStop => 'Stop dictation';
+
+  @override
+  String get dictationListening => 'Listening...';
+
+  @override
+  String get dictationPermissionDenied => 'Microphone access is needed for dictation.';
+
+  @override
+  String get dictationUnavailable => 'Speech recognition isn\'t available on this device.';
+
+  @override
+  String get stopGenerating => 'Stop';
+
+  @override
+  String get retry => 'Retry';
+
+  @override
+  String get readAloud => 'Read aloud';
+
+  @override
+  String get readAloudStop => 'Stop reading';
+
+  @override
+  String get copyMessage => 'Copy';
+
+  @override
+  String get copiedToClipboard => 'Copied to clipboard';
+
+  @override
+  String get noOpenAiHostSelected => 'No OpenAI-compatible server set. Add one in the settings.';
+
+  @override
+  String get settingsOpenAiHost => 'OpenAI-compatible server (optional)';
+
+  @override
+  String get settingsOpenAiHostDescription => 'For vLLM, LM Studio, llama.cpp or API proxies. Its models appear in the model picker.';
+
+  @override
+  String get settingsOpenAiKeyTitle => 'API key';
+
+  @override
+  String get settingsOpenAiKeyDescription => 'Optional. Sent as a Bearer token to the OpenAI-compatible server.';
+
+  @override
+  String settingsOpenAiConnected(String count) {
+    return 'Connected, $count models available';
+  }
 }

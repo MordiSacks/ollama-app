@@ -2,23 +2,24 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
-import 'package:ollama_app/worker/clients.dart';
 
+import 'composer.dart';
 import 'haptic.dart';
+import 'llm.dart';
 import 'setter.dart';
 import '../main.dart';
 
 import 'package:ollama_app/l10n/gen/app_localizations.dart';
 
-import 'package:ollama_dart/ollama_dart.dart' as llama;
 import 'package:dartx/dartx.dart';
 import 'package:uuid/uuid.dart';
 // ignore: depend_on_referenced_packages
 import 'package:flutter_chat_types/flutter_chat_types.dart' as types;
-// import 'package:scroll_to_index/scroll_to_index.dart';
 
-List<String> images = [];
-Future<List<llama.Message>> getHistory([String? addToSystem]) async {
+/// Id of the assistant message that is currently streaming, if any.
+String? streamingMessageId;
+
+String systemPrompt([String? addToSystem]) {
   var system = prefs?.getString("system") ?? "You are a helpful assistant";
   if (prefs!.getBool("noMarkdown") ?? false) {
     system +=
@@ -27,32 +28,60 @@ Future<List<llama.Message>> getHistory([String? addToSystem]) async {
   if (addToSystem != null) {
     system += "\n$addToSystem";
   }
+  return system;
+}
 
-  List<llama.Message> history = (prefs!.getBool("useSystem") ?? true)
-      ? [llama.Message(role: llama.MessageRole.system, content: system)]
+Future<String> _imageBase64(types.ImageMessage message) async {
+  if (message.uri.startsWith("data:")) {
+    return message.uri.substring(message.uri.indexOf(",") + 1);
+  }
+  return base64.encode(await File(message.uri).readAsBytes());
+}
+
+/// Builds the request history from the visible chat ([messages] is stored
+/// newest first). Images and files are attached to the user message that
+/// follows them.
+Future<List<LlmMessage>> getHistory([String? addToSystem]) async {
+  final List<LlmMessage> history = (prefs!.getBool("useSystem") ?? true)
+      ? [LlmMessage("system", systemPrompt(addToSystem))]
       : [];
-  List<llama.Message> history2 = [];
-  images = [];
-  for (var i = 0; i < messages.length; i++) {
-    if (jsonDecode(jsonEncode(messages[i]))["text"] != null) {
-      history2.add(llama.Message(
-          role: (messages[i].author.id == user.id)
-              ? llama.MessageRole.user
-              : llama.MessageRole.system,
-          content: jsonDecode(jsonEncode(messages[i]))["text"],
-          images: (images.isNotEmpty) ? images : null));
-      images = [];
-    } else {
-      var uri = jsonDecode(jsonEncode(messages[i]))["uri"] as String;
-      String content = (uri.startsWith("data:image/png;base64,"))
-          ? uri.removePrefix("data:image/png;base64,")
-          : base64.encode(await File(uri).readAsBytes());
-      uri = uri.removePrefix("data:image/png;base64,");
-      images.add(content);
+
+  List<String> images = [];
+  List<types.FileMessage> files = [];
+
+  String withFiles(String text) {
+    if (files.isEmpty) return text;
+    final buffer = StringBuffer();
+    for (final file in files) {
+      buffer.writeln("<file name=\"${file.name}\">");
+      buffer.writeln(file.metadata?["text"]?.toString() ?? "");
+      buffer.writeln("</file>");
+      buffer.writeln();
     }
+    buffer.write(text);
+    return buffer.toString();
   }
 
-  history.addAll(history2.reversed.toList());
+  for (final message in messages.reversed) {
+    if (message is types.ImageMessage) {
+      try {
+        images.add(await _imageBase64(message));
+      } catch (_) {}
+    } else if (message is types.FileMessage) {
+      files.add(message);
+    } else if (message is types.TextMessage) {
+      if (message.author.id == user.id) {
+        history.add(LlmMessage("user", withFiles(message.text), images));
+        images = [];
+        files = [];
+      } else {
+        history.add(LlmMessage("assistant", message.text));
+      }
+    }
+  }
+  if (images.isNotEmpty || files.isNotEmpty) {
+    history.add(LlmMessage("user", withFiles(""), images));
+  }
   return history;
 }
 
@@ -67,7 +96,7 @@ List getHistoryString([String? uuid]) {
     }
   }
 
-  if (messages[0]["role"] == "system") {
+  if (messages.isNotEmpty && messages[0]["role"] == "system") {
     messages.removeAt(0);
   }
   for (var i = 0; i < messages.length; i++) {
@@ -76,6 +105,11 @@ List getHistoryString([String? uuid]) {
         "role": messages[i]["role"]!,
         "content": "<${messages[i]["role"]} inserted an image>"
       };
+    } else if (messages[i]["type"] == "file") {
+      messages[i] = {
+        "role": messages[i]["role"]!,
+        "content": "<${messages[i]["role"]} attached ${messages[i]["name"]}>"
+      };
     }
   }
 
@@ -83,25 +117,12 @@ List getHistoryString([String? uuid]) {
 }
 
 Future<String> getTitleAi(List history) async {
-  final generated = await ollamaClient
-      .generateChatCompletion(
-        request: llama.GenerateChatCompletionRequest(
-            model: model!,
-            messages: [
-              const llama.Message(
-                  role: llama.MessageRole.system,
-                  content:
-                      "Generate a three to six word title for the conversation provided by the user. If an object or person is very important in the conversation, put it in the title as well; keep the focus on the main subject. You must not put the assistant in the focus and you must not put the word 'assistant' in the title! Do preferably use title case. Use a formal tone, don't use dramatic words, like 'mystery' Use spaces between words, do not use camel case! You must not use markdown or any other formatting language! You must not use emojis or any other symbols! You must not use general clauses like 'assistance', 'help' or 'session' in your title! \n\n~~User Introduces Themselves~~ -> User Introduction\n~~User Asks for Help with a Problem~~ -> Problem Help\n~~User has a _**big**_ Problem~~ -> Big Problem"),
-              llama.Message(
-                  role: llama.MessageRole.user,
-                  content: "```\n${jsonEncode(history)}\n```")
-            ],
-            keepAlive: int.parse(prefs!.getString("keepAlive") ?? "300")),
-      )
-      .timeout(Duration(
-          seconds:
-              (10.0 * (prefs!.getDouble("timeoutMultiplier") ?? 1.0)).round()));
-  var title = generated.message.content;
+  var title = await chatComplete(model: model!, messages: [
+    const LlmMessage("system",
+        "Generate a three to six word title for the conversation provided by the user. If an object or person is very important in the conversation, put it in the title as well; keep the focus on the main subject. You must not put the assistant in the focus and you must not put the word 'assistant' in the title! Do preferably use title case. Use a formal tone, don't use dramatic words, like 'mystery' Use spaces between words, do not use camel case! You must not use markdown or any other formatting language! You must not use emojis or any other symbols! You must not use general clauses like 'assistance', 'help' or 'session' in your title! \n\n~~User Introduces Themselves~~ -> User Introduction\n~~User Asks for Help with a Problem~~ -> Problem Help\n~~User has a _**big**_ Problem~~ -> Big Problem"),
+    LlmMessage("user", "```\n${jsonEncode(history)}\n```")
+  ]);
+  title = title.replaceAll(RegExp(r'<think>.*?</think>', dotAll: true), "");
   title = title.replaceAll("\n", " ");
 
   var terms = [
@@ -137,13 +158,13 @@ Future<String> getTitleAi(List history) async {
   return title.trim();
 }
 
-Future<void> setTitleAi(List history) async {
+Future<void> setTitleAi(List history, String uuid) async {
   try {
     var title = await getTitleAi(history);
+    if (title.isEmpty) return;
     var tmp = (prefs!.getStringList("chats") ?? []);
     for (var i = 0; i < tmp.length; i++) {
-      if (jsonDecode((prefs!.getStringList("chats") ?? [])[i])["uuid"] ==
-          chatUuid) {
+      if (jsonDecode(tmp[i])["uuid"] == uuid) {
         var tmp2 = jsonDecode(tmp[i]);
         tmp2["title"] = title;
         tmp[i] = jsonEncode(tmp2);
@@ -154,34 +175,58 @@ Future<void> setTitleAi(List history) async {
   } catch (_) {}
 }
 
+void _removeChatEntry(String uuid) {
+  var tmp = (prefs!.getStringList("chats") ?? []);
+  for (var i = 0; i < tmp.length; i++) {
+    if (jsonDecode(tmp[i])["uuid"] == uuid) {
+      tmp.removeAt(i);
+      prefs!.setStringList("chats", tmp);
+      break;
+    }
+  }
+}
+
+/// Sends [value] (plus [attachments]) and streams the answer into the chat.
+///
+/// If the request fails before any answer arrived, the message is taken out
+/// of the chat again and put back into the input field together with its
+/// attachments, and a snackbar offers to retry. Nothing the user wrote is
+/// lost.
 Future<String> send(String value, BuildContext context, Function setState,
     {void Function(String currentText, bool done)? onStream,
-    String? addToSystem}) async {
+    String? addToSystem,
+    List<PendingAttachment> attachments = const []}) async {
   selectionHaptic();
-  setState(() {
-    sendable = false;
-  });
+  final l10n = AppLocalizations.of(context)!;
+  final messenger = ScaffoldMessenger.of(context);
+  final bool fromComposer = onStream == null;
 
-  if (host == null) {
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-        content: Text(AppLocalizations.of(context)!.noHostSelected),
-        showCloseIcon: true));
-    if (onStream != null) {
+  void abort(String text) {
+    messenger
+        .showSnackBar(SnackBar(content: Text(text), showCloseIcon: true));
+    if (onStream != null) onStream("", true);
+  }
+
+  if (modelProvider == providerOpenAi ? !openAiConfigured : host == null) {
+    abort(modelProvider == providerOpenAi
+        ? l10n.noOpenAiHostSelected
+        : l10n.noHostSelected);
+    return "";
+  }
+  if (!chatAllowed || model == null) {
+    if (model == null) {
+      abort(l10n.noModelSelected);
+    } else if (onStream != null) {
       onStream("", true);
     }
     return "";
   }
 
-  if (!chatAllowed || model == null) {
-    if (model == null) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text(AppLocalizations.of(context)!.noModelSelected),
-          showCloseIcon: true));
-    }
-    if (onStream != null) {
-      onStream("", true);
-    }
-    return "";
+  // the composer's text and attachments now belong to this request
+  if (fromComposer) {
+    inputController.clear();
+    pendingAttachments = [];
+    refreshComposer?.call();
   }
 
   bool newChat = false;
@@ -192,139 +237,132 @@ Future<String> send(String value, BuildContext context, Function setState,
         "chats",
         (prefs!.getStringList("chats") ?? []).append([
           jsonEncode({
-            "title": AppLocalizations.of(context)!.newChatTitle,
+            "title": l10n.newChatTitle,
             "uuid": chatUuid,
             "messages": []
           })
         ]).toList());
   }
+  final String uuid = chatUuid!;
 
-  var history = await getHistory(addToSystem);
+  final List<types.Message> sentMessages = [
+    ...attachments.map((a) => a.toMessage()),
+    types.TextMessage(
+        author: user,
+        id: const Uuid().v4(),
+        createdAt: DateTime.now().millisecondsSinceEpoch,
+        text: value.trim())
+  ];
+  for (final message in sentMessages) {
+    messages.insert(0, message);
+  }
 
-  history.add(llama.Message(
-      role: llama.MessageRole.user,
-      content: value.trim(),
-      images: (images.isNotEmpty) ? images : null));
-  messages.insert(
-      0,
-      types.TextMessage(
-          author: user, id: const Uuid().v4(), text: value.trim()));
+  final history = await getHistory(addToSystem);
+  saveChat(uuid, setState);
 
-  saveChat(chatUuid!, setState);
-
-  setState(() {});
   chatAllowed = false;
+  final String newId = const Uuid().v4();
+  streamingMessageId = newId;
+  setState(() {});
 
+  final bool streamUi = (prefs!.getString("requestType") ?? "stream") == "stream";
   String text = "";
-  String newId = const Uuid().v4();
+  String thinking = "";
+  String? error;
+
+  void showAnswer({bool done = false}) {
+    messages.removeWhere((m) => m.id == newId);
+    // reasoning models think before answering; show a placeholder meanwhile
+    final shown =
+        (!done && text.isEmpty && thinking.isNotEmpty) ? "_…_" : text;
+    if (chatUuid == uuid) {
+      messages.insert(
+          0, types.TextMessage(author: assistant, id: newId, text: shown));
+    }
+  }
 
   try {
-    if ((prefs!.getString("requestType") ?? "stream") == "stream") {
-      final stream = ollamaClient
-          .generateChatCompletionStream(
-            request: llama.GenerateChatCompletionRequest(
-                model: model!,
-                messages: history,
-                keepAlive: int.parse(prefs!.getString("keepAlive") ?? "300")),
-          )
-          .timeout(Duration(
-              seconds: (30.0 * (prefs!.getDouble("timeoutMultiplier") ?? 1.0))
-                  .round()));
-
-      await for (final res in stream) {
-        text += (res.message.content);
-        for (var i = 0; i < messages.length; i++) {
-          if (messages[i].id == newId) {
-            messages.removeAt(i);
-            break;
-          }
-        }
-        if (chatAllowed) return "";
-        messages.insert(
-            0, types.TextMessage(author: assistant, id: newId, text: text));
-        //TODO: add functionality
-        //
-        // chatKey!.currentState!.scrollToMessage(messages[1].id,
-        //     preferPosition: AutoScrollPosition.end);
-        if (onStream != null) {
-          onStream(text, false);
-        }
+    await for (final delta in chatStream(model: model!, messages: history)) {
+      text += delta.content;
+      thinking += delta.thinking;
+      if (streamUi) {
+        showAnswer();
+        if (onStream != null) onStream(text, false);
         setState(() {});
         heavyHaptic();
       }
-    } else {
-      llama.GenerateChatCompletionResponse request;
-      request = await ollamaClient
-          .generateChatCompletion(
-            request: llama.GenerateChatCompletionRequest(
-                model: model!,
-                messages: history,
-                keepAlive: int.parse(prefs!.getString("keepAlive") ?? "300")),
-          )
-          .timeout(Duration(
-              seconds: (30.0 * (prefs!.getDouble("timeoutMultiplier") ?? 1.0))
-                  .round()));
-      if (chatAllowed) return "";
-      messages.insert(
-          0,
-          types.TextMessage(
-              author: assistant, id: newId, text: request.message.content));
-      text = request.message.content;
-      setState(() {});
-      heavyHaptic();
     }
   } catch (e) {
-    for (var i = 0; i < messages.length; i++) {
-      if (messages[i].id == newId) {
-        messages.removeAt(i);
-        break;
-      }
+    error = e.toString();
+  }
+  final bool cancelled = generationCancelled;
+  streamingMessageId = null;
+  chatAllowed = true;
+
+  if (text.trim().isEmpty && (error != null || cancelled)) {
+    // nothing came back: undo the send and give the text back
+    messages.removeWhere(
+        (m) => m.id == newId || sentMessages.any((s) => s.id == m.id));
+    if (messages.isEmpty && chatUuid == uuid) {
+      _removeChatEntry(uuid);
+      chatUuid = null;
+    } else {
+      saveChat(uuid, setState);
     }
-    setState(() {
-      chatAllowed = true;
-      messages.removeAt(0);
-      if (messages.isEmpty) {
-        var tmp = (prefs!.getStringList("chats") ?? []);
-        for (var i = 0; i < tmp.length; i++) {
-          if (jsonDecode((prefs!.getStringList("chats") ?? [])[i])["uuid"] ==
-              chatUuid) {
-            tmp.removeAt(i);
-            prefs!.setStringList("chats", tmp);
-            break;
-          }
-        }
-        chatUuid = null;
-      }
-    });
-    // ignore: use_build_context_synchronously
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-        content:
-            // ignore: use_build_context_synchronously
-            Text(AppLocalizations.of(context)!.settingsHostInvalid("timeout")),
-        showCloseIcon: true));
+
+    if (fromComposer) {
+      inputController.text = value;
+      inputController.selection =
+          TextSelection.collapsed(offset: inputController.text.length);
+      pendingAttachments = [...attachments, ...pendingAttachments];
+      refreshComposer?.call();
+    }
+    setState(() {});
+
+    if (error != null) {
+      messenger.showSnackBar(SnackBar(
+          content: Text(error),
+          duration: const Duration(seconds: 12),
+          showCloseIcon: true,
+          action: fromComposer
+              ? SnackBarAction(
+                  label: l10n.retry,
+                  onPressed: () {
+                    if (!chatAllowed) return;
+                    final retryAttachments = [...pendingAttachments];
+                    final retryText = inputController.text.trim();
+                    if (retryText.isEmpty) return;
+                    send(retryText, mainContext ?? context, setState,
+                        attachments: retryAttachments);
+                  })
+              : null));
+    }
+    if (onStream != null) onStream("", true);
     return "";
   }
-  //TODO: add functionality
-  //
-  // chatKey!.currentState!
-  //     .scrollToMessage(messages[1].id, preferPosition: AutoScrollPosition.end);
-  if ((prefs!.getString("requestType") ?? "stream") == "stream") {
-    if (onStream != null) {
-      onStream(text, true);
-    }
+
+  // got an answer (possibly partial)
+  showAnswer(done: true);
+  if (onStream != null) onStream(text, true);
+  saveChat(uuid, setState);
+  setState(() {});
+  heavyHaptic();
+
+  if (error != null) {
+    messenger.showSnackBar(SnackBar(
+        content: Text(error),
+        duration: const Duration(seconds: 8),
+        showCloseIcon: true));
   }
-  saveChat(chatUuid!, setState);
 
   if (newChat && (prefs!.getBool("generateTitles") ?? true)) {
     void setTitle() async {
-      await setTitleAi(getHistoryString());
+      await setTitleAi(getHistoryString(uuid), uuid);
       setState(() {});
     }
 
     setTitle();
   }
 
-  setState(() {});
-  chatAllowed = true;
   return text;
 }

@@ -2,9 +2,9 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:math';
 
-import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
 
 import 'package:ollama_app/l10n/gen/app_localizations.dart';
 
@@ -18,13 +18,15 @@ import 'worker/desktop.dart';
 import 'worker/theme.dart';
 import 'worker/update.dart';
 import 'worker/clients.dart';
+import 'worker/composer.dart';
+import 'worker/llm.dart';
+import 'worker/read_aloud.dart';
 
 import 'package:shared_preferences/shared_preferences.dart';
 // ignore: depend_on_referenced_packages
 import 'package:flutter_chat_types/flutter_chat_types.dart' as types;
 import 'package:flutter_chat_ui/flutter_chat_ui.dart';
 import 'package:uuid/uuid.dart';
-import 'package:image_picker/image_picker.dart';
 import 'package:visibility_detector/visibility_detector.dart';
 import 'package:flutter_markdown/flutter_markdown.dart';
 // ignore: depend_on_referenced_packages
@@ -757,6 +759,9 @@ class _MainAppState extends State<MainApp> {
   void initState() {
     super.initState();
     mainContext = context;
+    onReadAloudChanged = () {
+      if (mounted) setState(() {});
+    };
 
     if (kIsWeb) {
       html.querySelector(".loader")?.remove();
@@ -811,6 +816,8 @@ class _MainAppState extends State<MainApp> {
 
         setState(() {
           model = useModel ? fixedModel : prefs!.getString("model");
+          modelProvider =
+              prefs!.getString("modelProvider") ?? providerOllama;
           chatAllowed = !(model == null);
           multimodal = prefs?.getBool("multimodal") ?? false;
           host = useHost ? fixedHost : prefs?.getString("host");
@@ -837,7 +844,7 @@ class _MainAppState extends State<MainApp> {
     Widget selector = InkWell(
         onTap: !useModel
             ? () {
-                if (host == null) {
+                if (host == null && !openAiConfigured) {
                   ScaffoldMessenger.of(context).showSnackBar(SnackBar(
                       content:
                           Text(AppLocalizations.of(context)!.noHostSelected),
@@ -1032,13 +1039,27 @@ class _MainAppState extends State<MainApp> {
                                       "_Empty AI response, try restarting conversation_";
                                   greyed = true;
                                 }
+                                final bool showActions = p0.author != user &&
+                                    !greyed &&
+                                    p0.id != streamingMessageId;
+                                final bool reading =
+                                    speakingMessageId == p0.id;
+                                final Color actionColor = Theme.of(context)
+                                    .colorScheme
+                                    .onSurface
+                                    .withAlpha(160);
                                 return Padding(
                                     padding: const EdgeInsets.only(
                                         left: 20,
                                         right: 23,
                                         top: 17,
                                         bottom: 17),
-                                    child: Theme(
+                                    child: Column(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                    Theme(
                                       data: Theme.of(context).copyWith(
                                           scrollbarTheme:
                                               const ScrollbarThemeData(
@@ -1194,7 +1215,66 @@ class _MainAppState extends State<MainApp> {
                                                       code: const TextStyle(color: Colors.black, backgroundColor: Colors.white),
                                                       codeblockDecoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(8)),
                                                       horizontalRuleDecoration: BoxDecoration(border: Border(top: BorderSide(color: Colors.grey[200]!, width: 1))))),
-                                    ));
+                                    ),
+                                    if (showActions)
+                                      Padding(
+                                        padding: const EdgeInsets.only(top: 6),
+                                        child: Row(
+                                            mainAxisSize: MainAxisSize.min,
+                                            children: [
+                                              IconButton(
+                                                  visualDensity:
+                                                      VisualDensity.compact,
+                                                  iconSize: 20,
+                                                  color: reading
+                                                      ? Theme.of(context)
+                                                          .colorScheme
+                                                          .primary
+                                                      : actionColor,
+                                                  tooltip: reading
+                                                      ? AppLocalizations.of(
+                                                              context)!
+                                                          .readAloudStop
+                                                      : AppLocalizations.of(
+                                                              context)!
+                                                          .readAloud,
+                                                  onPressed: () {
+                                                    selectionHaptic();
+                                                    toggleReadAloud(
+                                                        p0.id, p0.text);
+                                                  },
+                                                  icon: Icon(reading
+                                                      ? Icons.stop_circle_rounded
+                                                      : Icons
+                                                          .volume_up_rounded)),
+                                              IconButton(
+                                                  visualDensity:
+                                                      VisualDensity.compact,
+                                                  iconSize: 20,
+                                                  color: actionColor,
+                                                  tooltip: AppLocalizations.of(
+                                                          context)!
+                                                      .copyMessage,
+                                                  onPressed: () {
+                                                    selectionHaptic();
+                                                    Clipboard.setData(
+                                                        ClipboardData(
+                                                            text: p0.text));
+                                                    ScaffoldMessenger.of(
+                                                            context)
+                                                        .showSnackBar(SnackBar(
+                                                            content: Text(
+                                                                AppLocalizations.of(
+                                                                        context)!
+                                                                    .copiedToClipboard),
+                                                            showCloseIcon:
+                                                                true));
+                                                  },
+                                                  icon: const Icon(
+                                                      Icons.copy_rounded)),
+                                            ]),
+                                      ),
+                                  ]));
                               },
                               imageMessageBuilder: (p0,
                                   {required messageWidth}) {
@@ -1226,6 +1306,32 @@ class _MainAppState extends State<MainApp> {
                               onSendPressed: (p0) {
                                 send(p0.text, context, setState);
                               },
+                              customBottomWidget: ChatComposer(
+                                  generating: !chatAllowed && model != null,
+                                  imagesSupported: multimodal ||
+                                      modelProvider == providerOpenAi,
+                                  onVoiceMode: (prefs?.getBool(
+                                                  "voiceModeEnabled") ??
+                                              false) &&
+                                          model != null
+                                      ? () {
+                                          setGlobalState = setState;
+                                          settingsOpen = true;
+                                          logoVisible = false;
+                                          Navigator.of(context).push(
+                                              MaterialPageRoute(
+                                                  builder: (context) =>
+                                                      const ScreenVoice()));
+                                        }
+                                      : null,
+                                  onSend: (text) {
+                                    stopReadAloud();
+                                    final attachments = [
+                                      ...pendingAttachments
+                                    ];
+                                    send(text, context, setState,
+                                        attachments: attachments);
+                                  }),
                               onMessageDoubleTap: (context, p1) {
                                 selectionHaptic();
                                 if (!chatAllowed) return;
@@ -1274,6 +1380,7 @@ class _MainAppState extends State<MainApp> {
 
                                 var index = -1;
                                 if (!chatAllowed) return;
+                                if (p1 is! types.TextMessage) return;
                                 for (var i = 0; i < messages.length; i++) {
                                   if (messages[i].id == p1.id) {
                                     index = i;
@@ -1301,244 +1408,11 @@ class _MainAppState extends State<MainApp> {
                                   id: p1.id,
                                   text: input,
                                 );
+                                if (chatUuid != null) {
+                                  saveChat(chatUuid!, setState);
+                                }
                                 setState(() {});
                               },
-                              onAttachmentPressed: (!multimodal)
-                                  ? (prefs?.getBool("voiceModeEnabled") ??
-                                          false)
-                                      ? (model != null)
-                                          ? () {
-                                              selectionHaptic();
-                                              setGlobalState = setState;
-                                              settingsOpen = true;
-                                              logoVisible = false;
-                                              Navigator.of(context).push(
-                                                  MaterialPageRoute(
-                                                      builder: (context) =>
-                                                          const ScreenVoice()));
-                                            }
-                                          : null
-                                      : null
-                                  : () {
-                                      selectionHaptic();
-                                      if (!chatAllowed || model == null) {
-                                        return;
-                                      }
-                                      if (desktopFeature()) {
-                                        FilePicker.platform
-                                            .pickFiles(type: FileType.image)
-                                            .then((value) async {
-                                          if (value == null) return;
-                                          if (!multimodal) return;
-
-                                          var encoded = base64.encode(
-                                              await File(
-                                                      value.files.first.path!)
-                                                  .readAsBytes());
-                                          messages.insert(
-                                              0,
-                                              types.ImageMessage(
-                                                  author: user,
-                                                  id: const Uuid().v4(),
-                                                  name: value.files.first.name,
-                                                  size: value.files.first.size,
-                                                  uri:
-                                                      "data:image/png;base64,$encoded"));
-
-                                          setState(() {});
-                                        });
-
-                                        return;
-                                      }
-                                      showModalBottomSheet(
-                                          context: context,
-                                          builder: (context) {
-                                            return Container(
-                                                width: double.infinity,
-                                                padding: const EdgeInsets.only(
-                                                    left: 16,
-                                                    right: 16,
-                                                    top: 16),
-                                                child: Column(
-                                                    mainAxisSize:
-                                                        MainAxisSize.min,
-                                                    children: [
-                                                      (prefs?.getBool(
-                                                                  "voiceModeEnabled") ??
-                                                              false)
-                                                          ? SizedBox(
-                                                              width: double
-                                                                  .infinity,
-                                                              child: OutlinedButton
-                                                                  .icon(
-                                                                      onPressed:
-                                                                          () async {
-                                                                        selectionHaptic();
-                                                                        Navigator.of(context)
-                                                                            .pop();
-                                                                        setGlobalState =
-                                                                            setState;
-                                                                        settingsOpen =
-                                                                            true;
-                                                                        logoVisible =
-                                                                            false;
-                                                                        Navigator.of(context).push(MaterialPageRoute(
-                                                                            builder: (context) =>
-                                                                                const ScreenVoice()));
-                                                                      },
-                                                                      icon: const Icon(
-                                                                          Icons
-                                                                              .headphones_rounded),
-                                                                      label: Text(
-                                                                          AppLocalizations.of(context)!
-                                                                              .settingsTitleVoice)))
-                                                          : const SizedBox
-                                                              .shrink(),
-                                                      (prefs?.getBool(
-                                                                  "voiceModeEnabled") ??
-                                                              false)
-                                                          ? const SizedBox(
-                                                              height: 8)
-                                                          : const SizedBox
-                                                              .shrink(),
-                                                      SizedBox(
-                                                          width:
-                                                              double.infinity,
-                                                          child: OutlinedButton
-                                                              .icon(
-                                                                  onPressed:
-                                                                      () async {
-                                                                    selectionHaptic();
-
-                                                                    Navigator.of(
-                                                                            context)
-                                                                        .pop();
-                                                                    final result =
-                                                                        await ImagePicker()
-                                                                            .pickImage(
-                                                                      source: ImageSource
-                                                                          .camera,
-                                                                    );
-                                                                    if (result ==
-                                                                        null) {
-                                                                      return;
-                                                                    }
-
-                                                                    final bytes =
-                                                                        await result
-                                                                            .readAsBytes();
-                                                                    final image =
-                                                                        await decodeImageFromList(
-                                                                            bytes);
-
-                                                                    final message =
-                                                                        types
-                                                                            .ImageMessage(
-                                                                      author:
-                                                                          user,
-                                                                      createdAt:
-                                                                          DateTime.now()
-                                                                              .millisecondsSinceEpoch,
-                                                                      height: image
-                                                                          .height
-                                                                          .toDouble(),
-                                                                      id: const Uuid()
-                                                                          .v4(),
-                                                                      name: result
-                                                                          .name,
-                                                                      size: bytes
-                                                                          .length,
-                                                                      uri: result
-                                                                          .path,
-                                                                      width: image
-                                                                          .width
-                                                                          .toDouble(),
-                                                                    );
-
-                                                                    messages.insert(
-                                                                        0,
-                                                                        message);
-                                                                    setState(
-                                                                        () {});
-                                                                    selectionHaptic();
-                                                                  },
-                                                                  icon: const Icon(
-                                                                      Icons
-                                                                          .photo_camera_rounded),
-                                                                  label: Text(AppLocalizations.of(
-                                                                          context)!
-                                                                      .takeImage))),
-                                                      const SizedBox(height: 8),
-                                                      SizedBox(
-                                                          width:
-                                                              double.infinity,
-                                                          child: OutlinedButton
-                                                              .icon(
-                                                                  onPressed:
-                                                                      () async {
-                                                                    selectionHaptic();
-
-                                                                    Navigator.of(
-                                                                            context)
-                                                                        .pop();
-                                                                    final result =
-                                                                        await ImagePicker()
-                                                                            .pickImage(
-                                                                      source: ImageSource
-                                                                          .gallery,
-                                                                    );
-                                                                    if (result ==
-                                                                        null) {
-                                                                      return;
-                                                                    }
-
-                                                                    final bytes =
-                                                                        await result
-                                                                            .readAsBytes();
-                                                                    final image =
-                                                                        await decodeImageFromList(
-                                                                            bytes);
-
-                                                                    final message =
-                                                                        types
-                                                                            .ImageMessage(
-                                                                      author:
-                                                                          user,
-                                                                      createdAt:
-                                                                          DateTime.now()
-                                                                              .millisecondsSinceEpoch,
-                                                                      height: image
-                                                                          .height
-                                                                          .toDouble(),
-                                                                      id: const Uuid()
-                                                                          .v4(),
-                                                                      name: result
-                                                                          .name,
-                                                                      size: bytes
-                                                                          .length,
-                                                                      uri: result
-                                                                          .path,
-                                                                      width: image
-                                                                          .width
-                                                                          .toDouble(),
-                                                                    );
-
-                                                                    messages.insert(
-                                                                        0,
-                                                                        message);
-                                                                    setState(
-                                                                        () {});
-                                                                    selectionHaptic();
-                                                                  },
-                                                                  icon: const Icon(
-                                                                      Icons
-                                                                          .image_rounded),
-                                                                  label: Text(AppLocalizations.of(
-                                                                          context)!
-                                                                      .uploadImage)))
-                                                    ]));
-                                          });
-                                    },
                               l10n: ChatL10nEn(
                                   inputPlaceholder: AppLocalizations.of(context)!
                                       .messageInputPlaceholder,
