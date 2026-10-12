@@ -423,7 +423,11 @@ class _ScreenSettingsInterfaceState extends State<ScreenSettingsInterface> {
                                       left: 16,
                                       right: 16,
                                       top: 16,
-                                      bottom: desktopLayout(context) ? 16 : 0),
+                                      bottom: desktopLayout(context)
+                                          ? 16
+                                          : MediaQuery.of(context)
+                                              .padding
+                                              .bottom),
                                   child: Column(
                                       mainAxisSize: MainAxisSize.min,
                                       children: [

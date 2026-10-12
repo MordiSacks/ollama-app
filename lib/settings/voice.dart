@@ -225,11 +225,13 @@ class _ScreenSettingsVoiceState extends State<ScreenSettingsVoice> {
                                         },
                                         child: Container(
                                             width: double.infinity,
-                                            padding: const EdgeInsets.only(
+                                            padding: EdgeInsets.only(
                                                 left: 16,
                                                 right: 16,
                                                 top: 16,
-                                                bottom: 0),
+                                                bottom: MediaQuery.of(context)
+                                                    .padding
+                                                    .bottom),
                                             child: Column(
                                                 mainAxisSize: MainAxisSize.min,
                                                 children: [

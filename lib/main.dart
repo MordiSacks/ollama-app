@@ -621,11 +621,14 @@ class _MainAppState extends State<MainApp> {
                                                 context: context,
                                                 builder: (context) {
                                                   return Container(
-                                                      padding:
-                                                          const EdgeInsets.only(
-                                                              left: 16,
-                                                              right: 16,
-                                                              top: 16),
+                                                      padding: EdgeInsets.only(
+                                                          left: 16,
+                                                          right: 16,
+                                                          top: 16,
+                                                          bottom: MediaQuery.of(
+                                                                  context)
+                                                              .padding
+                                                              .bottom),
                                                       child: Column(
                                                           mainAxisSize:
                                                               MainAxisSize.min,

@@ -340,7 +340,8 @@ void setModel(BuildContext context, Function setState) {
         });
   } else {
     showModalBottomSheet(
-        context: context, builder: (context) => Container(child: content));
+        context: context,
+        builder: (context) => SafeArea(top: false, child: content));
   }
 }
 
@@ -496,7 +497,9 @@ void addModel(BuildContext context, Function setState) async {
       builder: (context) {
         return StatefulBuilder(builder: (context, setLocalState) {
           setDialogState = setLocalState;
-          return PopScope(
+          return SafeArea(
+              top: false,
+              child: PopScope(
               canPop: false,
               child: Container(
                   width: double.infinity,
@@ -519,7 +522,7 @@ void addModel(BuildContext context, Function setState) async {
                       const Padding(padding: EdgeInsets.only(top: 8)),
                       LinearProgressIndicator(value: percent),
                     ],
-                  )));
+                  ))));
         });
       });
   try {
@@ -877,7 +880,8 @@ Future<String> prompt(BuildContext context,
                       top: 16,
                       bottom: desktopFeature(web: true)
                           ? 12
-                          : MediaQuery.of(context).viewInsets.bottom),
+                          : MediaQuery.of(context).viewInsets.bottom +
+                              MediaQuery.of(context).padding.bottom),
                   width: double.infinity,
                   child: Column(
                       mainAxisSize: MainAxisSize.min,
