@@ -58,7 +58,8 @@ class _ScreenSettingsSpeechState extends State<ScreenSettingsSpeech> {
   Widget _engineChoice(String key, String deviceDescription) {
     final l10n = AppLocalizations.of(context)!;
     final selected = _engine(key);
-    Widget option(String id, String label, String? subtitle) {
+    Widget option(String id, String label, String? subtitle,
+        {bool monospace = true}) {
       return RadioListTile<String>(
           value: id,
           groupValue: selected,
@@ -69,7 +70,9 @@ class _ScreenSettingsSpeechState extends State<ScreenSettingsSpeech> {
               : Text(subtitle,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(fontFamily: "monospace")),
+                  style: monospace
+                      ? const TextStyle(fontFamily: "monospace")
+                      : null),
           onChanged: (value) {
             selectionHaptic();
             prefs?.setString(key, value ?? speechEngineDevice);
@@ -78,7 +81,8 @@ class _ScreenSettingsSpeechState extends State<ScreenSettingsSpeech> {
     }
 
     return Column(mainAxisSize: MainAxisSize.min, children: [
-      option(speechEngineDevice, l10n.speechEngineDevice, deviceDescription),
+      option(speechEngineDevice, l10n.speechEngineDevice, deviceDescription,
+          monospace: false),
       for (final server in servers)
         option(server.id, server.displayName, server.url),
     ]);

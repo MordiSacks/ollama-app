@@ -209,7 +209,7 @@ Stream<LlmDelta> chatStream({
   } catch (e) {
     release();
     if (cancelled()) return;
-    throw LlmException("Couldn't reach ${uri.host}:${uri.port} ($e)");
+    throw LlmException("Couldn't reach ${uri.host}:${uri.port} (${describeNetworkError(e)})");
   }
 
   if (response.statusCode != 200) {
@@ -336,6 +336,18 @@ Map<String, dynamic>? _tryDecode(String text) {
   } catch (_) {
     return null;
   }
+}
+
+/// Short reason of a failed connection, e.g. "Connection refused".
+String describeNetworkError(Object error) {
+  var message =
+      error is http.ClientException ? error.message : error.toString();
+  message = message.replaceFirst(RegExp(r"^\w+Exception: "), "");
+  final details = message.indexOf(" (OS Error");
+  if (details > 0) message = message.substring(0, details);
+  final comma = message.indexOf(", address = ");
+  if (comma > 0) message = message.substring(0, comma);
+  return message;
 }
 
 String extractServerError(String body) {

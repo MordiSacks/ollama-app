@@ -75,7 +75,9 @@ class _ScreenSettingsVoiceState extends State<ScreenSettingsVoice> {
                   textColor: Theme.of(context).colorScheme.onPrimary,
                   child:
                       Text(AppLocalizations.of(context)!.settingsTitleVoice))),
-          body: Padding(
+          body: SafeArea(
+              top: false,
+              child: Padding(
               padding: const EdgeInsets.only(left: 16, right: 16),
               child: Column(children: [
                 Expanded(
@@ -372,7 +374,7 @@ class _ScreenSettingsVoiceState extends State<ScreenSettingsVoice> {
                           .settingsExperimentalBetaDescription),
                       showCloseIcon: true));
                 })
-              ]))),
+              ])))),
     );
   }
 }

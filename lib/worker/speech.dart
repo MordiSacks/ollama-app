@@ -138,7 +138,8 @@ Future<String> transcribe(SpeechServer server, String path) async {
     throw LlmException(
         "${server.displayName}: no response within ${firstResponseTimeout.inSeconds}s.");
   } catch (e) {
-    throw LlmException("Couldn't reach ${server.displayName} ($e)");
+    throw LlmException(
+        "Couldn't reach ${server.displayName} (${describeNetworkError(e)})");
   }
   final body = utf8.decode(response.bodyBytes, allowMalformed: true);
   if (response.statusCode != 200) {
@@ -177,7 +178,8 @@ Future<Uint8List> synthesize(SpeechServer server, String text) async {
     throw LlmException(
         "${server.displayName}: no response within ${firstResponseTimeout.inSeconds}s.");
   } catch (e) {
-    throw LlmException("Couldn't reach ${server.displayName} ($e)");
+    throw LlmException(
+        "Couldn't reach ${server.displayName} (${describeNetworkError(e)})");
   }
   if (response.statusCode != 200) {
     throw LlmException(

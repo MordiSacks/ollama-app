@@ -54,7 +54,9 @@ class _ScreenSettingsInterfaceState extends State<ScreenSettingsInterface> {
                 Expanded(child: SizedBox(height: 200, child: MoveWindow()))
               ]),
               actions: desktopControlsActions(context)),
-          body: Center(
+          body: SafeArea(
+              top: false,
+              child: Center(
             child: Container(
                 constraints: const BoxConstraints(maxWidth: 1000),
                 padding: const EdgeInsets.only(left: 16, right: 16),
@@ -486,7 +488,7 @@ class _ScreenSettingsInterfaceState extends State<ScreenSettingsInterface> {
                     ]),
                   )
                 ])),
-          )),
+          ))),
     );
   }
 }
