@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:async';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 import 'main.dart';
@@ -13,6 +14,7 @@ import 'package:ollama_app/l10n/gen/app_localizations.dart';
 
 import 'settings/behavior.dart';
 import 'settings/openai.dart';
+import 'settings/speech.dart';
 import 'settings/interface.dart';
 import 'settings/voice.dart';
 import 'settings/export.dart';
@@ -645,6 +647,22 @@ class _ScreenSettingsState extends State<ScreenSettings> {
                                       "\n${AppLocalizations.of(context)!.settingsDescriptionVoice}",
                                   badge: AppLocalizations.of(context)!
                                       .settingsExperimentalBeta)
+                              : const SizedBox.shrink(),
+                          (!kIsWeb)
+                              ? button(
+                                  AppLocalizations.of(context)!
+                                      .settingsTitleSpeech,
+                                  Icons.record_voice_over_rounded, () {
+                                  selectionHaptic();
+                                  Navigator.push(
+                                      context,
+                                      MaterialPageRoute(
+                                          builder: (context) =>
+                                              const ScreenSettingsSpeech()));
+                                },
+                                  context: context,
+                                  description:
+                                      "\n${AppLocalizations.of(context)!.settingsDescriptionSpeech}")
                               : const SizedBox.shrink(),
                           button(
                               AppLocalizations.of(context)!.settingsTitleExport,

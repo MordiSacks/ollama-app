@@ -28,6 +28,7 @@ import '../main.dart';
 import 'desktop.dart';
 import 'haptic.dart';
 import 'llm.dart';
+import 'speech.dart';
 
 // ---------------------------------------------------------------------------
 // shared state
@@ -191,6 +192,10 @@ class _ChatComposerState extends State<ChatComposer> {
   bool listening = false;
   String dictationBase = "";
 
+  /// Dictation goes to a speech server: [listening] means recording.
+  bool remoteDictation = false;
+  bool transcribing = false;
+
   @override
   void initState() {
     super.initState();
@@ -203,7 +208,9 @@ class _ChatComposerState extends State<ChatComposer> {
   @override
   void dispose() {
     inputController.removeListener(_onTextChanged);
-    if (listening) dictation.stop();
+    if (listening) {
+      remoteDictation ? cancelRecording() : dictation.stop();
+    }
     focusNode.dispose();
     refreshComposer = null;
     super.dispose();
@@ -214,7 +221,10 @@ class _ChatComposerState extends State<ChatComposer> {
   }
 
   bool get canSend =>
-      inputController.text.trim().isNotEmpty && !widget.generating;
+      inputController.text.trim().isNotEmpty &&
+      !widget.generating &&
+      !transcribing &&
+      !(listening && remoteDictation);
 
   void _send() {
     if (!canSend) return;
@@ -326,6 +336,12 @@ class _ChatComposerState extends State<ChatComposer> {
     }
     final l10n = AppLocalizations.of(context)!;
 
+    final server = sttServer;
+    if (server != null) {
+      await _startRemoteDictation(server);
+      return;
+    }
+
     if (!kIsWeb) {
       final status = await Permission.microphone.request();
       if (!mounted) return;
@@ -378,8 +394,76 @@ class _ChatComposerState extends State<ChatComposer> {
   }
 
   void _stopDictation() {
+    if (remoteDictation) {
+      _finishRemoteDictation();
+      return;
+    }
     dictation.stop();
     if (mounted) setState(() => listening = false);
+  }
+
+  Future<void> _startRemoteDictation(SpeechServer server) async {
+    final l10n = AppLocalizations.of(context)!;
+    if (!await recordingPermission()) {
+      if (mounted) _snack(l10n.dictationPermissionDenied);
+      return;
+    }
+    try {
+      await startRecording();
+    } catch (e) {
+      if (mounted) _snack(e.toString());
+      return;
+    }
+    if (!mounted) {
+      cancelRecording();
+      return;
+    }
+    setState(() {
+      remoteDictation = true;
+      listening = true;
+    });
+  }
+
+  Future<void> _finishRemoteDictation() async {
+    final server = sttServer;
+    setState(() {
+      listening = false;
+      transcribing = true;
+    });
+    String? text;
+    String? error;
+    try {
+      final path = await stopRecording();
+      if (path != null && server != null) {
+        try {
+          text = await transcribe(server, path);
+        } finally {
+          try {
+            await File(path).delete();
+          } catch (_) {}
+        }
+      }
+    } catch (e) {
+      error = e.toString();
+    }
+    if (!mounted) return;
+    setState(() {
+      transcribing = false;
+      remoteDictation = false;
+    });
+    if (error != null) {
+      _snack(error);
+    } else if (text != null && text.isNotEmpty) {
+      final current = inputController.text;
+      final joined = (current.isEmpty ||
+              current.endsWith(" ") ||
+              current.endsWith("\n"))
+          ? "$current$text"
+          : "$current $text";
+      inputController.value = TextEditingValue(
+          text: joined,
+          selection: TextSelection.collapsed(offset: joined.length));
+    }
   }
 
   // --- build ---------------------------------------------------------------
@@ -457,7 +541,9 @@ class _ChatComposerState extends State<ChatComposer> {
                         minLines: 1,
                         maxLines: 6,
                         decoration: InputDecoration(
-                            hintText: listening
+                            hintText: transcribing
+                                ? l10n.dictationTranscribing
+                                : listening
                                 ? l10n.dictationListening
                                 : l10n.messageInputPlaceholder,
                             border: InputBorder.none,
@@ -467,7 +553,17 @@ class _ChatComposerState extends State<ChatComposer> {
                       ),
                     ),
                   ),
-                  if (showMic)
+                  if (showMic && transcribing)
+                    Padding(
+                      padding: const EdgeInsets.all(12),
+                      child: SizedBox(
+                          width: 24,
+                          height: 24,
+                          child: CircularProgressIndicator(
+                              strokeWidth: 2.5,
+                              semanticsLabel: l10n.dictationTranscribing)),
+                    )
+                  else if (showMic)
                     IconButton(
                         tooltip: listening
                             ? l10n.dictationStop

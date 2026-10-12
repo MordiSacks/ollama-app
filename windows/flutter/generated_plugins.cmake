@@ -3,11 +3,13 @@
 #
 
 list(APPEND FLUTTER_PLUGIN_LIST
+  audioplayers_windows
   bitsdojo_window_windows
   dynamic_color
   file_selector_windows
   flutter_tts
   permission_handler_windows
+  record_windows
   url_launcher_windows
   volume_controller
 )

@@ -6,6 +6,7 @@ import 'package:ollama_app/worker/theme.dart';
 
 import '../main.dart';
 import '../screen_settings.dart';
+import 'speech.dart';
 
 import 'package:ollama_app/l10n/gen/app_localizations.dart';
 
@@ -322,6 +323,15 @@ class _ScreenSettingsVoiceState extends State<ScreenSettingsVoice> {
                     },
                         disabled: (!voiceSupported ||
                             !(prefs!.getBool("voiceModeEnabled") ?? false))),
+                    button(AppLocalizations.of(context)!.settingsTitleSpeech,
+                        Icons.record_voice_over_rounded, () {
+                      selectionHaptic();
+                      Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                              builder: (context) =>
+                                  const ScreenSettingsSpeech()));
+                    }),
                     titleDivider(),
                     toggle(
                         context,

@@ -1110,6 +1110,186 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Connected, {count} models available'**
   String settingsOpenAiConnected(String count);
+
+  /// Title of the speech engines settings
+  ///
+  /// In en, this message translates to:
+  /// **'Speech engines'**
+  String get settingsTitleSpeech;
+
+  /// Description of the speech engines settings
+  ///
+  /// In en, this message translates to:
+  /// **'Use the device or your own servers for speech recognition and reading aloud.'**
+  String get settingsDescriptionSpeech;
+
+  /// Section title for speech recognition
+  ///
+  /// In en, this message translates to:
+  /// **'Speech to text'**
+  String get speechSectionStt;
+
+  /// Section title for speech output
+  ///
+  /// In en, this message translates to:
+  /// **'Text to speech'**
+  String get speechSectionTts;
+
+  /// Section title for the list of speech servers
+  ///
+  /// In en, this message translates to:
+  /// **'Speech servers'**
+  String get speechSectionServers;
+
+  /// Engine option that uses the phone's own speech services
+  ///
+  /// In en, this message translates to:
+  /// **'Device'**
+  String get speechEngineDevice;
+
+  /// Subtitle of the device speech recognition option
+  ///
+  /// In en, this message translates to:
+  /// **'The system speech recognition service'**
+  String get speechEngineDeviceSttDescription;
+
+  /// Subtitle of the device text-to-speech option
+  ///
+  /// In en, this message translates to:
+  /// **'The system text-to-speech engine'**
+  String get speechEngineDeviceTtsDescription;
+
+  /// Explanation below the speech server list
+  ///
+  /// In en, this message translates to:
+  /// **'Speech servers use the OpenAI audio API (/audio/transcriptions and /audio/speech), as offered by Speaches, vLLM, LocalAI or Kokoro-FastAPI. The selected engines are used for dictation, read aloud and voice mode.'**
+  String get speechServersDescription;
+
+  /// Button that adds a speech server
+  ///
+  /// In en, this message translates to:
+  /// **'Add server'**
+  String get speechServerAdd;
+
+  /// Title when adding a speech server
+  ///
+  /// In en, this message translates to:
+  /// **'New speech server'**
+  String get speechServerNew;
+
+  /// Title when editing a speech server
+  ///
+  /// In en, this message translates to:
+  /// **'Edit speech server'**
+  String get speechServerEdit;
+
+  /// Tooltip of the delete speech server button
+  ///
+  /// In en, this message translates to:
+  /// **'Delete server'**
+  String get speechServerDelete;
+
+  /// Label of the speech server name field
+  ///
+  /// In en, this message translates to:
+  /// **'Name'**
+  String get speechServerName;
+
+  /// Label of the speech server URL field
+  ///
+  /// In en, this message translates to:
+  /// **'Server URL'**
+  String get speechServerUrl;
+
+  /// Helper of the speech server URL field
+  ///
+  /// In en, this message translates to:
+  /// **'Base URL of an OpenAI-compatible server, usually ending in /v1'**
+  String get speechServerUrlDescription;
+
+  /// Label of the speech server API key field
+  ///
+  /// In en, this message translates to:
+  /// **'API key (optional)'**
+  String get speechServerKey;
+
+  /// Label of the speech recognition model field
+  ///
+  /// In en, this message translates to:
+  /// **'Transcription model'**
+  String get speechServerSttModel;
+
+  /// Label of the speech recognition language field
+  ///
+  /// In en, this message translates to:
+  /// **'Transcription language'**
+  String get speechServerSttLanguage;
+
+  /// Helper of the speech recognition language field
+  ///
+  /// In en, this message translates to:
+  /// **'Leave empty to detect it automatically, or set a code like he or en'**
+  String get speechServerSttLanguageDescription;
+
+  /// Label of the text-to-speech model field
+  ///
+  /// In en, this message translates to:
+  /// **'Speech model'**
+  String get speechServerTtsModel;
+
+  /// Label of the text-to-speech voice field
+  ///
+  /// In en, this message translates to:
+  /// **'Voice'**
+  String get speechServerTtsVoice;
+
+  /// Label of the text-to-speech audio format field
+  ///
+  /// In en, this message translates to:
+  /// **'Audio format'**
+  String get speechServerTtsFormat;
+
+  /// Button that records and transcribes a test
+  ///
+  /// In en, this message translates to:
+  /// **'Test speech to text'**
+  String get speechServerTestStt;
+
+  /// Button label while the test recording runs
+  ///
+  /// In en, this message translates to:
+  /// **'Listening, tap to stop'**
+  String get speechServerTestListening;
+
+  /// Shown when the transcription test heard nothing
+  ///
+  /// In en, this message translates to:
+  /// **'Nothing was recognized'**
+  String get speechServerTestNothing;
+
+  /// Button that plays a test sentence
+  ///
+  /// In en, this message translates to:
+  /// **'Test text to speech'**
+  String get speechServerTestTts;
+
+  /// Sentence spoken by the text-to-speech test
+  ///
+  /// In en, this message translates to:
+  /// **'This is a test of the speech server.'**
+  String get speechServerTestSample;
+
+  /// Shown while the speech server transcribes the dictation
+  ///
+  /// In en, this message translates to:
+  /// **'Transcribing…'**
+  String get dictationTranscribing;
+
+  /// Result of the transcription test
+  ///
+  /// In en, this message translates to:
+  /// **'Recognized: {text}'**
+  String speechServerTestHeard(String text);
 }
 
 class _AppLocalizationsDelegate extends LocalizationsDelegate<AppLocalizations> {

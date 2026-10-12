@@ -117,7 +117,7 @@ Future<List<String>> listOpenAiModels(
       .timeout(timeout ?? Duration(seconds: (10 * _timeoutMultiplier).round()));
   if (response.statusCode != 200) {
     throw LlmException(
-        "HTTP ${response.statusCode}: ${_extractError(response.body)}");
+        "HTTP ${response.statusCode}: ${extractServerError(response.body)}");
   }
   final data = jsonDecode(utf8.decode(response.bodyBytes));
   final list = (data is Map ? data["data"] : data) as List? ?? [];
@@ -219,7 +219,7 @@ Stream<LlmDelta> chatStream({
     } catch (_) {}
     release();
     throw LlmException(
-        "Server returned HTTP ${response.statusCode}: ${_extractError(text)}");
+        "Server returned HTTP ${response.statusCode}: ${extractServerError(text)}");
   }
 
   final lines = _withTimeouts(
@@ -239,7 +239,7 @@ Stream<LlmDelta> chatStream({
         final json = _tryDecode(payload);
         if (json == null) continue;
         if (json["error"] != null) {
-          throw LlmException(_extractError(payload));
+          throw LlmException(extractServerError(payload));
         }
         final choices = json["choices"];
         if (choices is! List || choices.isEmpty) continue;
@@ -338,7 +338,7 @@ Map<String, dynamic>? _tryDecode(String text) {
   }
 }
 
-String _extractError(String body) {
+String extractServerError(String body) {
   final json = _tryDecode(body);
   if (json != null) {
     final error = json["error"];

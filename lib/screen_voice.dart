@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 
 import 'package:speech_to_text/speech_to_text.dart' as stt;
@@ -10,6 +12,8 @@ import 'worker/sender.dart';
 import 'worker/llm.dart';
 import 'worker/haptic.dart';
 import 'worker/setter.dart';
+import 'worker/speech.dart';
+import 'worker/read_aloud.dart';
 import 'worker/theme.dart';
 import 'settings/voice.dart';
 
@@ -33,7 +37,67 @@ class _ScreenVoiceState extends State<ScreenVoice> {
 
   bool intendedStop = false;
 
-  void process() async {
+  void _showError(Object error) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text(error.toString()),
+        showCloseIcon: true,
+        duration: const Duration(seconds: 8)));
+  }
+
+  /// Listens with a speech server. Returns false if processing should stop.
+  Future<bool> _listenRemote(SpeechServer server) async {
+    setState(() {
+      speaking = true;
+      sttDone = false;
+      text = "";
+    });
+
+    String? path;
+    try {
+      path = await recordUtterance(keepGoing: () => speaking && mounted);
+    } catch (e) {
+      speaking = false;
+      if (mounted) setState(() {});
+      _showError(e);
+      return false;
+    }
+    if (!speaking) {
+      if (!intendedStop) {
+        // closed or cancelled
+        if (path != null) File(path).delete().ignore();
+        return false;
+      }
+      intendedStop = false;
+      speaking = true;
+    }
+    if (path == null) {
+      speaking = false;
+      if (mounted) setState(() {});
+      return false;
+    }
+
+    if (mounted) setState(() => text = "…");
+    try {
+      text = await transcribe(server, path);
+    } catch (e) {
+      text = "";
+      speaking = false;
+      if (mounted) setState(() {});
+      _showError(e);
+      return false;
+    } finally {
+      File(path).delete().ignore();
+    }
+    sttDone = true;
+    if (!mounted) return false;
+    setState(() {});
+    return true;
+  }
+
+  /// Listens with the device's recognizer. Returns false if processing
+  /// should stop.
+  Future<bool> _listenDevice() async {
     setState(() {
       speaking = true;
       sttDone = false;
@@ -82,13 +146,21 @@ class _ScreenVoiceState extends State<ScreenVoice> {
         try {
           setState(() {});
         } catch (_) {}
-        return;
+        return false;
       } else {
         intendedStop = false;
         try {
           setState(() {});
         } catch (_) {}
       }
+    }
+    return true;
+  }
+
+  void process() async {
+    final server = sttServer;
+    if (!await (server != null ? _listenRemote(server) : _listenDevice())) {
+      return;
     }
 
     if (text.isEmpty) {
@@ -103,7 +175,8 @@ class _ScreenVoiceState extends State<ScreenVoice> {
 
     aiThinking = true;
     try {
-      if (prefs!.getBool("aiPunctuation") ?? true) {
+      // speech servers (Whisper) already punctuate
+      if (server == null && (prefs!.getBool("aiPunctuation") ?? true)) {
         final generated = await chatComplete(model: model!, messages: [
           LlmMessage("user",
               "Add punctuation and syntax to the following sentence. You must not change order of words or a word in itself! You must not add any word or phrase or remove one! Do not change between formal and personal form, keep the original one! Reply with the sentence only.\n\n$text")
@@ -136,25 +209,21 @@ class _ScreenVoiceState extends State<ScreenVoice> {
           return;
         }
 
-        if ((await voice.getLanguages as List).contains(
-            (prefs!.getString("voiceLanguage") ?? "en_US")
-                .replaceAll("_", "-"))) {
-          voice.setLanguage((prefs!.getString("voiceLanguage") ?? "en_US")
-              .replaceAll("_", "-"));
-          voice.setSpeechRate(0.6);
-          voice.setCompletionHandler(() async {
-            speaking = false;
-            try {
-              setState(() {});
-            } catch (_) {}
-            process();
-          });
-          var tmp = aiText;
-          tmp.replaceAll("-", ".");
-          tmp.replaceAll("*", ".");
-
-          voice.speak(tmp);
+        bool finished = false;
+        try {
+          finished = await speakText(aiText,
+              language: (prefs!.getString("voiceLanguage") ?? "en_US")
+                  .replaceAll("_", "-"),
+              rate: 0.6);
+        } catch (e) {
+          _showError(e);
         }
+        speaking = false;
+        try {
+          setState(() {});
+        } catch (_) {}
+        // listen for the next question unless reading was stopped
+        if (finished && mounted) process();
       }
     },
         addToSystem: (prefs!.getBool("voiceLimitLanguage") ?? true)
@@ -205,7 +274,7 @@ class _ScreenVoiceState extends State<ScreenVoice> {
             onPopInvokedWithResult: (didPop, result) {
               if (!didPop) return;
               speaking = false;
-              voice.stop();
+              stopReadAloud();
               if (chatUuid != null) {
                 loadChat(chatUuid!, setGlobalState!);
               }
@@ -300,9 +369,14 @@ class _ScreenVoiceState extends State<ScreenVoice> {
                                                 BorderRadius.circular(48),
                                             onTap: () {
                                               if (speaking && !aiThinking) {
-                                                intendedStop = true;
+                                                // while listening: done
+                                                // talking; while reading:
+                                                // stop reading
+                                                if (!sttDone) {
+                                                  intendedStop = true;
+                                                }
                                                 speaking = false;
-                                                voice.stop();
+                                                stopReadAloud();
                                                 return;
                                               }
                                               process();

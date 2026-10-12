@@ -876,5 +876,130 @@
                 "type": "String"
             }
         }
+    },
+    "settingsTitleSpeech": "Speech engines",
+    "@settingsTitleSpeech": {
+        "description": "Title of the speech engines settings"
+    },
+    "settingsDescriptionSpeech": "Use the device or your own servers for speech recognition and reading aloud.",
+    "@settingsDescriptionSpeech": {
+        "description": "Description of the speech engines settings"
+    },
+    "speechSectionStt": "Speech to text",
+    "@speechSectionStt": {
+        "description": "Section title for speech recognition"
+    },
+    "speechSectionTts": "Text to speech",
+    "@speechSectionTts": {
+        "description": "Section title for speech output"
+    },
+    "speechSectionServers": "Speech servers",
+    "@speechSectionServers": {
+        "description": "Section title for the list of speech servers"
+    },
+    "speechEngineDevice": "Device",
+    "@speechEngineDevice": {
+        "description": "Engine option that uses the phone's own speech services"
+    },
+    "speechEngineDeviceSttDescription": "The system speech recognition service",
+    "@speechEngineDeviceSttDescription": {
+        "description": "Subtitle of the device speech recognition option"
+    },
+    "speechEngineDeviceTtsDescription": "The system text-to-speech engine",
+    "@speechEngineDeviceTtsDescription": {
+        "description": "Subtitle of the device text-to-speech option"
+    },
+    "speechServersDescription": "Speech servers use the OpenAI audio API (/audio/transcriptions and /audio/speech), as offered by Speaches, vLLM, LocalAI or Kokoro-FastAPI. The selected engines are used for dictation, read aloud and voice mode.",
+    "@speechServersDescription": {
+        "description": "Explanation below the speech server list"
+    },
+    "speechServerAdd": "Add server",
+    "@speechServerAdd": {
+        "description": "Button that adds a speech server"
+    },
+    "speechServerNew": "New speech server",
+    "@speechServerNew": {
+        "description": "Title when adding a speech server"
+    },
+    "speechServerEdit": "Edit speech server",
+    "@speechServerEdit": {
+        "description": "Title when editing a speech server"
+    },
+    "speechServerDelete": "Delete server",
+    "@speechServerDelete": {
+        "description": "Tooltip of the delete speech server button"
+    },
+    "speechServerName": "Name",
+    "@speechServerName": {
+        "description": "Label of the speech server name field"
+    },
+    "speechServerUrl": "Server URL",
+    "@speechServerUrl": {
+        "description": "Label of the speech server URL field"
+    },
+    "speechServerUrlDescription": "Base URL of an OpenAI-compatible server, usually ending in /v1",
+    "@speechServerUrlDescription": {
+        "description": "Helper of the speech server URL field"
+    },
+    "speechServerKey": "API key (optional)",
+    "@speechServerKey": {
+        "description": "Label of the speech server API key field"
+    },
+    "speechServerSttModel": "Transcription model",
+    "@speechServerSttModel": {
+        "description": "Label of the speech recognition model field"
+    },
+    "speechServerSttLanguage": "Transcription language",
+    "@speechServerSttLanguage": {
+        "description": "Label of the speech recognition language field"
+    },
+    "speechServerSttLanguageDescription": "Leave empty to detect it automatically, or set a code like he or en",
+    "@speechServerSttLanguageDescription": {
+        "description": "Helper of the speech recognition language field"
+    },
+    "speechServerTtsModel": "Speech model",
+    "@speechServerTtsModel": {
+        "description": "Label of the text-to-speech model field"
+    },
+    "speechServerTtsVoice": "Voice",
+    "@speechServerTtsVoice": {
+        "description": "Label of the text-to-speech voice field"
+    },
+    "speechServerTtsFormat": "Audio format",
+    "@speechServerTtsFormat": {
+        "description": "Label of the text-to-speech audio format field"
+    },
+    "speechServerTestStt": "Test speech to text",
+    "@speechServerTestStt": {
+        "description": "Button that records and transcribes a test"
+    },
+    "speechServerTestListening": "Listening, tap to stop",
+    "@speechServerTestListening": {
+        "description": "Button label while the test recording runs"
+    },
+    "speechServerTestNothing": "Nothing was recognized",
+    "@speechServerTestNothing": {
+        "description": "Shown when the transcription test heard nothing"
+    },
+    "speechServerTestTts": "Test text to speech",
+    "@speechServerTestTts": {
+        "description": "Button that plays a test sentence"
+    },
+    "speechServerTestSample": "This is a test of the speech server.",
+    "@speechServerTestSample": {
+        "description": "Sentence spoken by the text-to-speech test"
+    },
+    "dictationTranscribing": "Transcribing…",
+    "@dictationTranscribing": {
+        "description": "Shown while the speech server transcribes the dictation"
+    },
+    "speechServerTestHeard": "Recognized: {text}",
+    "@speechServerTestHeard": {
+        "description": "Result of the transcription test",
+        "placeholders": {
+            "text": {
+                "type": "String"
+            }
+        }
     }
 }

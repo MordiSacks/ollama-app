@@ -548,4 +548,96 @@ class AppLocalizationsDe extends AppLocalizations {
   String settingsOpenAiConnected(String count) {
     return 'Connected, $count models available';
   }
+
+  @override
+  String get settingsTitleSpeech => 'Speech engines';
+
+  @override
+  String get settingsDescriptionSpeech => 'Use the device or your own servers for speech recognition and reading aloud.';
+
+  @override
+  String get speechSectionStt => 'Speech to text';
+
+  @override
+  String get speechSectionTts => 'Text to speech';
+
+  @override
+  String get speechSectionServers => 'Speech servers';
+
+  @override
+  String get speechEngineDevice => 'Device';
+
+  @override
+  String get speechEngineDeviceSttDescription => 'The system speech recognition service';
+
+  @override
+  String get speechEngineDeviceTtsDescription => 'The system text-to-speech engine';
+
+  @override
+  String get speechServersDescription => 'Speech servers use the OpenAI audio API (/audio/transcriptions and /audio/speech), as offered by Speaches, vLLM, LocalAI or Kokoro-FastAPI. The selected engines are used for dictation, read aloud and voice mode.';
+
+  @override
+  String get speechServerAdd => 'Add server';
+
+  @override
+  String get speechServerNew => 'New speech server';
+
+  @override
+  String get speechServerEdit => 'Edit speech server';
+
+  @override
+  String get speechServerDelete => 'Delete server';
+
+  @override
+  String get speechServerName => 'Name';
+
+  @override
+  String get speechServerUrl => 'Server URL';
+
+  @override
+  String get speechServerUrlDescription => 'Base URL of an OpenAI-compatible server, usually ending in /v1';
+
+  @override
+  String get speechServerKey => 'API key (optional)';
+
+  @override
+  String get speechServerSttModel => 'Transcription model';
+
+  @override
+  String get speechServerSttLanguage => 'Transcription language';
+
+  @override
+  String get speechServerSttLanguageDescription => 'Leave empty to detect it automatically, or set a code like he or en';
+
+  @override
+  String get speechServerTtsModel => 'Speech model';
+
+  @override
+  String get speechServerTtsVoice => 'Voice';
+
+  @override
+  String get speechServerTtsFormat => 'Audio format';
+
+  @override
+  String get speechServerTestStt => 'Test speech to text';
+
+  @override
+  String get speechServerTestListening => 'Listening, tap to stop';
+
+  @override
+  String get speechServerTestNothing => 'Nothing was recognized';
+
+  @override
+  String get speechServerTestTts => 'Test text to speech';
+
+  @override
+  String get speechServerTestSample => 'This is a test of the speech server.';
+
+  @override
+  String get dictationTranscribing => 'Transcribing…';
+
+  @override
+  String speechServerTestHeard(String text) {
+    return 'Recognized: $text';
+  }
 }

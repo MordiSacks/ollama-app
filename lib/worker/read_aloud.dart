@@ -1,8 +1,13 @@
-// Read assistant messages aloud with the device's text-to-speech engine.
+// Read assistant messages aloud with the selected text-to-speech engine
+// (the device's, or a speech server, see speech.dart).
 
+import 'dart:typed_data';
 import 'dart:ui' as ui;
 
+import 'package:flutter/material.dart';
+
 import '../main.dart';
+import 'speech.dart';
 
 /// Id of the message currently being read, or null.
 String? speakingMessageId;
@@ -90,6 +95,66 @@ Future<void> stopReadAloud() async {
   try {
     await voice.stop();
   } catch (_) {}
+  await stopPlayback();
+}
+
+/// Speaks [markdown] with the selected engine. Completes when it was read to
+/// the end (true) or was stopped by [stopReadAloud] or another call (false).
+/// [language] only applies to the device engine; by default it is guessed
+/// from the text. Errors of a speech server are thrown.
+Future<bool> speakText(String markdown,
+    {String? language, double? rate}) async {
+  final session = ++_session;
+  final text = speakableText(markdown);
+  if (text.isEmpty) return true;
+
+  final server = ttsServer;
+  if (server != null) {
+    // short pieces so the first one is ready quickly; fetch the next piece
+    // while the current one plays
+    final chunks = _chunks(text, max: 400);
+    Future<Uint8List> next = synthesize(server, chunks.first);
+    for (var i = 0; i < chunks.length; i++) {
+      final Uint8List audio;
+      try {
+        audio = await next;
+      } catch (e) {
+        if (session != _session) return false;
+        rethrow;
+      }
+      if (i + 1 < chunks.length) {
+        next = synthesize(server, chunks[i + 1]);
+      }
+      if (session != _session) {
+        if (i + 1 < chunks.length) next.ignore();
+        return false;
+      }
+      await playAudio(audio, server.ttsFormat);
+      if (session != _session) {
+        if (i + 1 < chunks.length) next.ignore();
+        return false;
+      }
+    }
+    return true;
+  }
+
+  try {
+    // voice mode installs its own completion handler, neutralize it
+    voice.setCompletionHandler(() {});
+    await voice.awaitSpeakCompletion(true);
+    language ??= _languageFor(text);
+    final available = await voice.isLanguageAvailable(language);
+    if (available == true || available == 1) {
+      await voice.setLanguage(language);
+    }
+    await voice.setSpeechRate(rate ?? prefs?.getDouble("readAloudRate") ?? 0.5);
+
+    for (final chunk in _chunks(text)) {
+      if (session != _session) return false;
+      await voice.speak(chunk);
+    }
+  } catch (_) {}
+  return session == _session;
 }
 
 /// Reads [markdown] aloud; calling it for the message that is already being
@@ -100,27 +165,20 @@ Future<void> toggleReadAloud(String messageId, String markdown) async {
     return;
   }
   await stopReadAloud();
-  final session = ++_session;
   speakingMessageId = messageId;
   onReadAloudChanged?.call();
+  final session = _session + 1; // the one speakText is about to start
 
-  final text = speakableText(markdown);
   try {
-    // voice mode installs its own completion handler, neutralize it
-    voice.setCompletionHandler(() {});
-    await voice.awaitSpeakCompletion(true);
-    final language = _languageFor(text);
-    final available = await voice.isLanguageAvailable(language);
-    if (available == true || available == 1) {
-      await voice.setLanguage(language);
+    await speakText(markdown);
+  } catch (e) {
+    if (mainContext != null && mainContext!.mounted) {
+      ScaffoldMessenger.of(mainContext!).showSnackBar(SnackBar(
+          content: Text(e.toString()),
+          showCloseIcon: true,
+          duration: const Duration(seconds: 8)));
     }
-    await voice.setSpeechRate(prefs?.getDouble("readAloudRate") ?? 0.5);
-
-    for (final chunk in _chunks(text)) {
-      if (session != _session) return;
-      await voice.speak(chunk);
-    }
-  } catch (_) {}
+  }
 
   if (session == _session) {
     speakingMessageId = null;

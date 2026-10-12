@@ -34,7 +34,8 @@ android {
         applicationId = "com.freakurl.apps.ollama.fork"
         // You can update the following values to match your application needs.
         // For more information, see: https://flutter.dev/to/review-gradle-config.
-        minSdk = flutter.minSdkVersion
+        // record (speech server dictation) needs Android 6+
+        minSdk = 23
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
         versionName = flutter.versionName
