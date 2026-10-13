@@ -6,7 +6,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
 
 import '../main.dart';
+import '../worker/chat_store.dart';
 import '../worker/haptic.dart';
+import '../worker/setter.dart';
 import '../worker/desktop.dart';
 import '../screen_settings.dart';
 
@@ -52,8 +54,7 @@ class _ScreenSettingsExportState extends State<ScreenSettingsExport> {
                         selectionHaptic();
                         var name =
                             "ollama-export-${DateFormat('yyyy-MM-dd-H-m-s').format(DateTime.now())}.json";
-                        var content =
-                            jsonEncode(prefs!.getStringList("chats") ?? []);
+                        var content = await exportChats();
                         if (kIsWeb) {
                           // web fallback
                           final bytes = utf8.encode(content);
@@ -85,8 +86,7 @@ class _ScreenSettingsExportState extends State<ScreenSettingsExport> {
                                 type: FileType.custom,
                                 allowedExtensions: ["json"],
                                 fileName: name,
-                                bytes: utf8.encode(jsonEncode(
-                                    prefs!.getStringList("chats") ?? [])));
+                                bytes: utf8.encode(content));
                           }
                           selectionHaptic();
                           if (path == null) return;
@@ -106,117 +106,70 @@ class _ScreenSettingsExportState extends State<ScreenSettingsExport> {
                               AppLocalizations.of(context)!.settingsImportChats,
                               Icons.download_rounded, () async {
                               selectionHaptic();
-                              await showDialog(
+                              final l10n = AppLocalizations.of(context)!;
+                              final messenger = ScaffoldMessenger.of(context);
+                              final bool? replace = await showDialog<bool>(
                                   context: context,
                                   builder: (context) {
                                     return AlertDialog(
-                                        title: Text(
-                                            AppLocalizations.of(context)!
-                                                .settingsImportChatsTitle),
-                                        content: Text(AppLocalizations.of(
-                                                context)!
-                                            .settingsImportChatsDescription),
+                                        title: Text(l10n
+                                            .settingsImportChatsTitle),
+                                        content: Text(l10n
+                                            .settingsImportChatsChoice),
                                         actions: [
                                           TextButton(
                                               onPressed: () {
                                                 selectionHaptic();
                                                 Navigator.of(context).pop();
                                               },
-                                              child: Text(AppLocalizations.of(
-                                                      context)!
+                                              child: Text(l10n
                                                   .settingsImportChatsCancel)),
                                           TextButton(
-                                              onPressed: () async {
+                                              onPressed: () {
                                                 selectionHaptic();
-                                                String content;
-                                                try {
-                                                  if (kIsWeb) {
-                                                    throw Exception(
-                                                        "web must use file picker");
-                                                  }
-                                                  file_selector.XFile? result =
-                                                      await file_selector.openFile(
-                                                          acceptedTypeGroups: [
-                                                        const file_selector
-                                                            .XTypeGroup(
-                                                            label:
-                                                                "Ollama App File",
-                                                            extensions: [
-                                                              "json"
-                                                            ])
-                                                      ]);
-                                                  if (result == null) {
-                                                    // ignore: use_build_context_synchronously
-                                                    Navigator.of(context).pop();
-                                                    return;
-                                                  }
-                                                  content = await result
-                                                      .readAsString();
-                                                } catch (_) {
-                                                  FilePickerResult? result =
-                                                      await FilePicker.platform
-                                                          .pickFiles(
-                                                              type: FileType
-                                                                  .custom,
-                                                              allowedExtensions: [
-                                                        "json"
-                                                      ]);
-                                                  if (result == null) {
-                                                    // ignore: use_build_context_synchronously
-                                                    Navigator.of(context).pop();
-                                                    return;
-                                                  }
-                                                  try {
-                                                    File file = File(result
-                                                        .files.single.path!);
-                                                    content = await file
-                                                        .readAsString();
-                                                  } catch (_) {
-                                                    // web fallback
-                                                    content = utf8.decode(result
-                                                        .files
-                                                        .single
-                                                        .bytes as List<int>);
-                                                  }
-                                                }
-                                                List<dynamic> tmpHistory =
-                                                    jsonDecode(content);
-                                                List<String> history = [];
-
-                                                for (var i = 0;
-                                                    i < tmpHistory.length;
-                                                    i++) {
-                                                  history.add(tmpHistory[i]);
-                                                }
-
-                                                prefs!.setStringList(
-                                                    "chats", history);
-
-                                                messages = [];
-                                                chatUuid = null;
-
-                                                setState(() {});
-
-                                                // ignore: use_build_context_synchronously
-                                                Navigator.of(context).pop();
-                                                // ignore: use_build_context_synchronously
-                                                Navigator.of(context).pop();
-                                                // ignore: use_build_context_synchronously
-                                                Navigator.of(context).pop();
-                                                // ignore: use_build_context_synchronously
-                                                ScaffoldMessenger.of(context)
-                                                    .showSnackBar(SnackBar(
-                                                        content: Text(AppLocalizations
-                                                                // ignore: use_build_context_synchronously
-                                                                .of(context)!
-                                                            .settingsImportChatsSuccess),
-                                                        showCloseIcon: true));
+                                                Navigator.of(context)
+                                                    .pop(true);
                                               },
-                                              child: Text(AppLocalizations.of(
-                                                      context)!
-                                                  .settingsImportChatsImport))
+                                              child: Text(l10n
+                                                  .settingsImportChatsReplace)),
+                                          FilledButton.tonal(
+                                              onPressed: () {
+                                                selectionHaptic();
+                                                Navigator.of(context)
+                                                    .pop(false);
+                                              },
+                                              child: Text(l10n
+                                                  .settingsImportChatsMerge)),
                                         ]);
                                   });
+                              if (replace == null) return;
+
+                              final content = await _pickExport();
+                              if (content == null) return;
+                              int count;
+                              try {
+                                count = await importChats(content,
+                                    replace: replace);
+                              } catch (_) {
+                                messenger.showSnackBar(SnackBar(
+                                    content: Text(
+                                        l10n.settingsImportChatsFailed),
+                                    showCloseIcon: true));
+                                return;
+                              }
+                              // the open chat may have been replaced
+                              final refresh = setGlobalState ?? setState;
+                              if (replace || findChat(chatUuid) == null) {
+                                messages = [];
+                                chatUuid = null;
+                              } else if (chatUuid != null) {
+                                loadChat(chatUuid!, refresh);
+                              }
+                              refresh(() {});
+                              messenger.showSnackBar(SnackBar(
+                                  content: Text(
+                                      l10n.settingsImportChatsCount(count)),
+                                  showCloseIcon: true));
                             })
                           : const SizedBox.shrink()
                     ]),
@@ -226,12 +179,34 @@ class _ScreenSettingsExportState extends State<ScreenSettingsExport> {
                       Icons.info_rounded, null,
                       color: Colors.grey.harmonizeWith(
                           Theme.of(context).colorScheme.primary)),
-                  button(AppLocalizations.of(context)!.settingsExportWarning,
+                  button(AppLocalizations.of(context)!.settingsImportChatsMergeInfo,
                       Icons.warning_rounded, null,
                       color: Colors.orange
                           .harmonizeWith(Theme.of(context).colorScheme.primary))
                 ])),
           ))),
     );
+  }
+}
+
+/// Lets the user pick an export file; returns its content or null.
+Future<String?> _pickExport() async {
+  try {
+    if (kIsWeb) throw Exception("web must use file picker");
+    final result = await file_selector.openFile(acceptedTypeGroups: [
+      const file_selector.XTypeGroup(
+          label: "Ollama App File", extensions: ["json"])
+    ]);
+    return await result?.readAsString();
+  } catch (_) {
+    final result = await FilePicker.platform
+        .pickFiles(type: FileType.custom, allowedExtensions: ["json"]);
+    if (result == null) return null;
+    try {
+      return await File(result.files.single.path!).readAsString();
+    } catch (_) {
+      // web fallback
+      return utf8.decode(result.files.single.bytes as List<int>);
+    }
   }
 }

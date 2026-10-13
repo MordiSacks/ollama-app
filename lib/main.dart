@@ -18,6 +18,7 @@ import 'worker/desktop.dart';
 import 'worker/theme.dart';
 import 'worker/update.dart';
 import 'worker/clients.dart';
+import 'worker/chat_store.dart';
 import 'worker/composer.dart';
 import 'worker/llm.dart';
 import 'worker/read_aloud.dart';
@@ -138,6 +139,7 @@ class _AppState extends State<App> {
 
       SharedPreferences.setPrefix("ollama.");
       SharedPreferences tmp = await SharedPreferences.getInstance();
+      await initChatStore(tmp);
       setState(() {
         prefs = tmp;
       });
@@ -387,7 +389,7 @@ class _MainAppState extends State<MainApp> {
               color: desktopLayout(context)
                   ? Theme.of(context).colorScheme.onSurface.withAlpha(20)
                   : null),
-      ((prefs?.getStringList("chats") ?? []).isNotEmpty)
+      (chatList.isNotEmpty)
           ? const SizedBox.shrink()
           : (Padding(
               padding: padding,
@@ -427,7 +429,7 @@ class _MainAppState extends State<MainApp> {
                         ? AppLocalizations.of(context)!.tip3
                         : AppLocalizations.of(context)!.tip4;
         return (!(prefs?.getBool("tips") ?? true) ||
-                (prefs?.getStringList("chats") ?? []).isNotEmpty ||
+                chatList.isNotEmpty ||
                 !allowSettings)
             ? const SizedBox.shrink()
             : (Padding(
@@ -467,7 +469,7 @@ class _MainAppState extends State<MainApp> {
                 )));
       }),
     ])
-      ..addAll((prefs?.getStringList("chats") ?? []).map((item) {
+      ..addAll(chatList.map((chat) {
         var child = Padding(
             padding: padding,
             child: InkWell(
@@ -480,14 +482,14 @@ class _MainAppState extends State<MainApp> {
                     Navigator.of(context).pop();
                   }
                   if (!chatAllowed) return;
-                  if (chatUuid == jsonDecode(item)["uuid"]) return;
-                  loadChat(jsonDecode(item)["uuid"], setState);
-                  chatUuid = jsonDecode(item)["uuid"];
+                  if (chatUuid == chat.uuid) return;
+                  loadChat(chat.uuid, setState);
+                  chatUuid = chat.uuid;
                 },
                 onHover: (value) {
                   setState(() {
                     if (value) {
-                      hoveredChat = jsonDecode(item)["uuid"];
+                      hoveredChat = chat.uuid;
                     } else {
                       hoveredChat = "";
                     }
@@ -499,28 +501,17 @@ class _MainAppState extends State<MainApp> {
                     : () async {
                         selectionHaptic();
                         if (!chatAllowed &&
-                            chatUuid == jsonDecode(item)["uuid"]) {
+                            chatUuid == chat.uuid) {
                           return;
                         }
                         if (!allowSettings) return;
-                        String oldTitle = jsonDecode(item)["title"];
+                        String oldTitle = chat.title;
                         var newTitle = await prompt(context,
                             title: AppLocalizations.of(context)!
                                 .dialogEnterNewTitle,
                             value: oldTitle,
-                            uuid: jsonDecode(item)["uuid"]);
-                        var tmp = (prefs!.getStringList("chats") ?? []);
-                        for (var i = 0; i < tmp.length; i++) {
-                          if (jsonDecode((prefs!.getStringList("chats") ??
-                                  [])[i])["uuid"] ==
-                              jsonDecode(item)["uuid"]) {
-                            var tmp2 = jsonDecode(tmp[i]);
-                            tmp2["title"] = newTitle;
-                            tmp[i] = jsonEncode(tmp2);
-                            break;
-                          }
-                        }
-                        prefs!.setStringList("chats", tmp);
+                            uuid: chat.uuid);
+                        renameChat(chat.uuid, newTitle);
                         setState(() {});
                       },
                 child: Padding(
@@ -530,12 +521,12 @@ class _MainAppState extends State<MainApp> {
                           ? Padding(
                               padding:
                                   const EdgeInsets.only(left: 16, right: 16),
-                              child: Icon((chatUuid == jsonDecode(item)["uuid"])
+                              child: Icon((chatUuid == chat.uuid)
                                   ? Icons.location_on_rounded
                                   : Icons.restore_rounded))
                           : const SizedBox(width: 16),
                       Expanded(
-                        child: Text(jsonDecode(item)["title"],
+                        child: Text(chat.title,
                             softWrap: false,
                             maxLines: 1,
                             overflow: TextOverflow.fade,
@@ -550,7 +541,7 @@ class _MainAppState extends State<MainApp> {
                                                   desktopLayoutNotRequired(
                                                       context))) &&
                                           (hoveredChat ==
-                                              jsonDecode(item)["uuid"])) ||
+                                              chat.uuid)) ||
                                       !allowMultipleChats)
                                   ? Padding(
                                       padding: const EdgeInsets.only(
@@ -572,30 +563,11 @@ class _MainAppState extends State<MainApp> {
                                           onPressed: () {
                                             if (!chatAllowed &&
                                                 chatUuid ==
-                                                    jsonDecode(item)["uuid"]) {
+                                                    chat.uuid) {
                                               return;
                                             }
                                             if (!allowMultipleChats) {
-                                              for (var i = 0;
-                                                  i <
-                                                      (prefs!.getStringList(
-                                                                  "chats") ??
-                                                              [])
-                                                          .length;
-                                                  i++) {
-                                                if (jsonDecode((prefs!
-                                                            .getStringList(
-                                                                "chats") ??
-                                                        [])[i])["uuid"] ==
-                                                    jsonDecode(item)["uuid"]) {
-                                                  List<String> tmp = prefs!
-                                                      .getStringList("chats")!;
-                                                  tmp.removeAt(i);
-                                                  prefs!.setStringList(
-                                                      "chats", tmp);
-                                                  break;
-                                                }
-                                              }
+                                              removeChat(chat.uuid);
                                               messages = [];
                                               chatUuid = null;
                                               if (!desktopLayoutRequired(
@@ -610,7 +582,7 @@ class _MainAppState extends State<MainApp> {
                                                   context, setState,
                                                   additionalCondition: false,
                                                   uuid:
-                                                      jsonDecode(item)["uuid"],
+                                                      chat.uuid,
                                                   popSidebar: true);
                                               return;
                                             }
@@ -646,7 +618,7 @@ class _MainAppState extends State<MainApp> {
                                                                           deleteChatDialog(
                                                                               context,
                                                                               setState,
-                                                                              uuid: jsonDecode(item)["uuid"],
+                                                                              uuid: chat.uuid,
                                                                               popSidebar: true);
                                                                         },
                                                                         icon: const Icon(Icons
@@ -666,28 +638,13 @@ class _MainAppState extends State<MainApp> {
                                                                               .pop();
                                                                           String
                                                                               oldTitle =
-                                                                              jsonDecode(item)["title"];
+                                                                              chat.title;
                                                                           var newTitle = await prompt(
                                                                               context,
                                                                               title: AppLocalizations.of(context)!.dialogEnterNewTitle,
                                                                               value: oldTitle,
-                                                                              uuid: jsonDecode(item)["uuid"]);
-                                                                          var tmp =
-                                                                              (prefs!.getStringList("chats") ?? []);
-                                                                          for (var i = 0;
-                                                                              i < tmp.length;
-                                                                              i++) {
-                                                                            if (jsonDecode((prefs!.getStringList("chats") ?? [])[i])["uuid"] ==
-                                                                                jsonDecode(item)["uuid"]) {
-                                                                              var tmp2 = jsonDecode(tmp[i]);
-                                                                              tmp2["title"] = newTitle;
-                                                                              tmp[i] = jsonEncode(tmp2);
-                                                                              break;
-                                                                            }
-                                                                          }
-                                                                          prefs!.setStringList(
-                                                                              "chats",
-                                                                              tmp);
+                                                                              uuid: chat.uuid);
+                                                                          renameChat(chat.uuid, newTitle);
                                                                           setState(
                                                                               () {});
                                                                         },
@@ -721,12 +678,12 @@ class _MainAppState extends State<MainApp> {
                 !allowMultipleChats
             ? child
             : Dismissible(
-                key: Key(jsonDecode(item)["uuid"]),
+                key: Key(chat.uuid),
                 direction: (chatAllowed)
                     ? DismissDirection.startToEnd
                     : DismissDirection.none,
                 confirmDismiss: (direction) async {
-                  if (!chatAllowed && chatUuid == jsonDecode(item)["uuid"]) {
+                  if (!chatAllowed && chatUuid == chat.uuid) {
                     return false;
                   }
                   return await deleteChatDialog(context, setState,
@@ -734,19 +691,8 @@ class _MainAppState extends State<MainApp> {
                 },
                 onDismissed: (direction) {
                   selectionHaptic();
-                  for (var i = 0;
-                      i < (prefs!.getStringList("chats") ?? []).length;
-                      i++) {
-                    if (jsonDecode(
-                            (prefs!.getStringList("chats") ?? [])[i])["uuid"] ==
-                        jsonDecode(item)["uuid"]) {
-                      List<String> tmp = prefs!.getStringList("chats")!;
-                      tmp.removeAt(i);
-                      prefs!.setStringList("chats", tmp);
-                      break;
-                    }
-                  }
-                  if (chatUuid == jsonDecode(item)["uuid"]) {
+                  removeChat(chat.uuid);
+                  if (chatUuid == chat.uuid) {
                     messages = [];
                     chatUuid = null;
                     if (!desktopLayoutRequired(context)) {
@@ -763,6 +709,7 @@ class _MainAppState extends State<MainApp> {
   void initState() {
     super.initState();
     mainContext = context;
+    setGlobalState = setState;
     onReadAloudChanged = () {
       if (mounted) setState(() {});
     };
@@ -812,9 +759,8 @@ class _MainAppState extends State<MainApp> {
         }
 
         if (!allowMultipleChats &&
-            (prefs!.getStringList("chats") ?? []).isNotEmpty) {
-          chatUuid =
-              jsonDecode((prefs!.getStringList("chats") ?? [])[0])["uuid"];
+            chatList.isNotEmpty) {
+          chatUuid = chatList.first.uuid;
           loadChat(chatUuid!, setState);
         }
 

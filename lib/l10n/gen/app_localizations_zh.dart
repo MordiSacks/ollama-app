@@ -430,6 +430,32 @@ class AppLocalizationsZh extends AppLocalizations {
   String get settingsExportWarning => '多个聊天记录将不会合并！如果导入新的聊天记录，您将丢失当前的聊天记录';
 
   @override
+  String get settingsImportChatsChoice => 'Add the chats from the file to your chats, or replace all your chats with them? Chats that exist in both are overwritten with the version from the file.';
+
+  @override
+  String get settingsImportChatsMerge => 'Add';
+
+  @override
+  String get settingsImportChatsReplace => 'Replace all';
+
+  @override
+  String get settingsImportChatsFailed => 'This file isn\'t a chat export';
+
+  @override
+  String settingsImportChatsCount(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: 'Imported $count chats',
+      one: 'Imported 1 chat',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get settingsImportChatsMergeInfo => 'Importing can add the chats to your current ones or replace them';
+
+  @override
   String get settingsUpdateCheck => '检查更新';
 
   @override

@@ -691,6 +691,41 @@
         "description": "Warning displayed for export and import options",
         "context": "Visible in the settings view"
     },
+    "settingsImportChatsChoice": "Add the chats from the file to your chats, or replace all your chats with them? Chats that exist in both are overwritten with the version from the file.",
+    "@settingsImportChatsChoice": {
+        "description": "Question shown before importing chats",
+        "context": "Visible in the settings view"
+    },
+    "settingsImportChatsMerge": "Add",
+    "@settingsImportChatsMerge": {
+        "description": "Button that adds the imported chats to the existing ones",
+        "context": "Visible in the settings view"
+    },
+    "settingsImportChatsReplace": "Replace all",
+    "@settingsImportChatsReplace": {
+        "description": "Button that deletes all chats and imports the file",
+        "context": "Visible in the settings view"
+    },
+    "settingsImportChatsFailed": "This file isn't a chat export",
+    "@settingsImportChatsFailed": {
+        "description": "Shown when an import file can't be read",
+        "context": "Visible in the settings view"
+    },
+    "settingsImportChatsCount": "{count, plural, =1{Imported 1 chat} other{Imported {count} chats}}",
+    "@settingsImportChatsCount": {
+        "description": "Shown after chats were imported",
+        "context": "Visible in the settings view",
+        "placeholders": {
+            "count": {
+                "type": "int"
+            }
+        }
+    },
+    "settingsImportChatsMergeInfo": "Importing can add the chats to your current ones or replace them",
+    "@settingsImportChatsMergeInfo": {
+        "description": "Note about how import treats existing chats",
+        "context": "Visible in the settings view"
+    },
     "settingsUpdateCheck": "Check for updates",
     "@settingsUpdateCheck": {
         "description": "Text displayed as description for check for updates button",

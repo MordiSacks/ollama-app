@@ -1,5 +1,11 @@
 {
   "de": [
+    "settingsImportChatsChoice",
+    "settingsImportChatsMerge",
+    "settingsImportChatsReplace",
+    "settingsImportChatsFailed",
+    "settingsImportChatsCount",
+    "settingsImportChatsMergeInfo",
     "attachFile",
     "attachmentUnsupported",
     "attachmentTruncated",
@@ -60,6 +66,12 @@
   ],
 
   "fa": [
+    "settingsImportChatsChoice",
+    "settingsImportChatsMerge",
+    "settingsImportChatsReplace",
+    "settingsImportChatsFailed",
+    "settingsImportChatsCount",
+    "settingsImportChatsMergeInfo",
     "attachFile",
     "attachmentUnsupported",
     "attachmentTruncated",
@@ -120,6 +132,12 @@
   ],
 
   "it": [
+    "settingsImportChatsChoice",
+    "settingsImportChatsMerge",
+    "settingsImportChatsReplace",
+    "settingsImportChatsFailed",
+    "settingsImportChatsCount",
+    "settingsImportChatsMergeInfo",
     "attachFile",
     "attachmentUnsupported",
     "attachmentTruncated",
@@ -180,6 +198,12 @@
   ],
 
   "tr": [
+    "settingsImportChatsChoice",
+    "settingsImportChatsMerge",
+    "settingsImportChatsReplace",
+    "settingsImportChatsFailed",
+    "settingsImportChatsCount",
+    "settingsImportChatsMergeInfo",
     "attachFile",
     "attachmentUnsupported",
     "attachmentTruncated",
@@ -240,6 +264,12 @@
   ],
 
   "zh": [
+    "settingsImportChatsChoice",
+    "settingsImportChatsMerge",
+    "settingsImportChatsReplace",
+    "settingsImportChatsFailed",
+    "settingsImportChatsCount",
+    "settingsImportChatsMergeInfo",
     "attachFile",
     "attachmentUnsupported",
     "attachmentTruncated",

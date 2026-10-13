@@ -3,6 +3,7 @@ import 'dart:io';
 
 import 'package:flutter/material.dart';
 
+import 'chat_store.dart';
 import 'composer.dart';
 import 'haptic.dart';
 import 'llm.dart';
@@ -12,7 +13,6 @@ import '../main.dart';
 
 import 'package:ollama_app/l10n/gen/app_localizations.dart';
 
-import 'package:dartx/dartx.dart';
 import 'package:uuid/uuid.dart';
 // ignore: depend_on_referenced_packages
 import 'package:flutter_chat_types/flutter_chat_types.dart' as types;
@@ -86,16 +86,17 @@ Future<List<LlmMessage>> getHistory([String? addToSystem]) async {
   return history;
 }
 
-List getHistoryString([String? uuid]) {
+/// The stored chat [uuid] as plain role/content pairs, for title generation.
+Future<List> getHistoryString([String? uuid]) async {
   uuid ??= chatUuid!;
-  List messages = [];
-  for (var i = 0; i < (prefs!.getStringList("chats") ?? []).length; i++) {
-    if (jsonDecode((prefs!.getStringList("chats") ?? [])[i])["uuid"] == uuid) {
-      messages = jsonDecode(
-          jsonDecode((prefs!.getStringList("chats") ?? [])[i])["messages"]);
-      break;
-    }
-  }
+  final List messages = (await chatMessages(uuid))
+      .map((m) => {
+            "role": m.role,
+            "content": m.content,
+            if (m.type != messageText) "type": m.type,
+            if (m.name != null) "name": m.name
+          })
+      .toList();
 
   if (messages.isNotEmpty && messages[0]["role"] == "system") {
     messages.removeAt(0);
@@ -163,28 +164,8 @@ Future<void> setTitleAi(List history, String uuid) async {
   try {
     var title = await getTitleAi(history);
     if (title.isEmpty) return;
-    var tmp = (prefs!.getStringList("chats") ?? []);
-    for (var i = 0; i < tmp.length; i++) {
-      if (jsonDecode(tmp[i])["uuid"] == uuid) {
-        var tmp2 = jsonDecode(tmp[i]);
-        tmp2["title"] = title;
-        tmp[i] = jsonEncode(tmp2);
-        break;
-      }
-    }
-    prefs!.setStringList("chats", tmp);
+    renameChat(uuid, title);
   } catch (_) {}
-}
-
-void _removeChatEntry(String uuid) {
-  var tmp = (prefs!.getStringList("chats") ?? []);
-  for (var i = 0; i < tmp.length; i++) {
-    if (jsonDecode(tmp[i])["uuid"] == uuid) {
-      tmp.removeAt(i);
-      prefs!.setStringList("chats", tmp);
-      break;
-    }
-  }
 }
 
 /// Sends [value] (plus [attachments]) and streams the answer into the chat.
@@ -234,15 +215,7 @@ Future<String> send(String value, BuildContext context, Function setState,
   if (chatUuid == null) {
     newChat = true;
     chatUuid = const Uuid().v4();
-    prefs!.setStringList(
-        "chats",
-        (prefs!.getStringList("chats") ?? []).append([
-          jsonEncode({
-            "title": l10n.newChatTitle,
-            "uuid": chatUuid,
-            "messages": []
-          })
-        ]).toList());
+    createChat(chatUuid!, l10n.newChatTitle);
   }
   final String uuid = chatUuid!;
 
@@ -331,7 +304,7 @@ Future<String> send(String value, BuildContext context, Function setState,
     messages.removeWhere(
         (m) => m.id == newId || sentMessages.any((s) => s.id == m.id));
     if (messages.isEmpty && chatUuid == uuid) {
-      _removeChatEntry(uuid);
+      removeChat(uuid);
       chatUuid = null;
     } else {
       saveChat(uuid, setState);
@@ -384,7 +357,7 @@ Future<String> send(String value, BuildContext context, Function setState,
 
   if (newChat && (prefs!.getBool("generateTitles") ?? true)) {
     void setTitle() async {
-      await setTitleAi(getHistoryString(uuid), uuid);
+      await setTitleAi(await getHistoryString(uuid), uuid);
       setState(() {});
     }
 

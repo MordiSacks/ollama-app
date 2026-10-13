@@ -431,6 +431,32 @@ class AppLocalizationsDe extends AppLocalizations {
   String get settingsExportWarning => 'Mehrere Chatverläufe werden nicht zusammengeführt! Du verlierst deinen aktuellen Chatverlauf, wenn du einen neuen importierst';
 
   @override
+  String get settingsImportChatsChoice => 'Add the chats from the file to your chats, or replace all your chats with them? Chats that exist in both are overwritten with the version from the file.';
+
+  @override
+  String get settingsImportChatsMerge => 'Add';
+
+  @override
+  String get settingsImportChatsReplace => 'Replace all';
+
+  @override
+  String get settingsImportChatsFailed => 'This file isn\'t a chat export';
+
+  @override
+  String settingsImportChatsCount(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: 'Imported $count chats',
+      one: 'Imported 1 chat',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get settingsImportChatsMergeInfo => 'Importing can add the chats to your current ones or replace them';
+
+  @override
   String get settingsUpdateCheck => 'Nach Updates suchen';
 
   @override

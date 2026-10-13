@@ -889,6 +889,42 @@ abstract class AppLocalizations {
   /// **'Multiple chat histories won\'t be merged! You\'ll loose your current chat history if you import a new one'**
   String get settingsExportWarning;
 
+  /// Question shown before importing chats
+  ///
+  /// In en, this message translates to:
+  /// **'Add the chats from the file to your chats, or replace all your chats with them? Chats that exist in both are overwritten with the version from the file.'**
+  String get settingsImportChatsChoice;
+
+  /// Button that adds the imported chats to the existing ones
+  ///
+  /// In en, this message translates to:
+  /// **'Add'**
+  String get settingsImportChatsMerge;
+
+  /// Button that deletes all chats and imports the file
+  ///
+  /// In en, this message translates to:
+  /// **'Replace all'**
+  String get settingsImportChatsReplace;
+
+  /// Shown when an import file can't be read
+  ///
+  /// In en, this message translates to:
+  /// **'This file isn\'t a chat export'**
+  String get settingsImportChatsFailed;
+
+  /// Shown after chats were imported
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, =1{Imported 1 chat} other{Imported {count} chats}}'**
+  String settingsImportChatsCount(int count);
+
+  /// Note about how import treats existing chats
+  ///
+  /// In en, this message translates to:
+  /// **'Importing can add the chats to your current ones or replace them'**
+  String get settingsImportChatsMergeInfo;
+
   /// Text displayed as description for check for updates button
   ///
   /// In en, this message translates to:

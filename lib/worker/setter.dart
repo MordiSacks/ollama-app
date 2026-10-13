@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
 
+import 'chat_store.dart';
 import 'desktop.dart';
 import 'haptic.dart';
 import '../main.dart';
@@ -11,7 +12,6 @@ import 'sender.dart';
 import 'theme.dart';
 import 'clients.dart';
 import 'llm.dart';
-import 'thinking.dart';
 
 import 'package:ollama_app/l10n/gen/app_localizations.dart';
 
@@ -19,7 +19,6 @@ import 'package:dartx/dartx.dart';
 import 'package:ollama_dart/ollama_dart.dart' as llama;
 // ignore: depend_on_referenced_packages
 import 'package:flutter_chat_types/flutter_chat_types.dart' as types;
-import 'package:uuid/uuid.dart';
 import 'package:http/http.dart' as http;
 
 void setModel(BuildContext context, Function setState) {
@@ -615,158 +614,116 @@ void addModel(BuildContext context, Function setState) async {
   }
 }
 
+/// Converts a chat bubble into its stored form; null if it can't be stored.
+Future<StoredMessage?> storedMessage(types.Message message) async {
+  final role = (message.author == user) ? "user" : "assistant";
+  if (message is types.TextMessage) {
+    return StoredMessage(
+        id: message.id,
+        role: role,
+        content: message.text,
+        createdAt: message.createdAt,
+        meta: message.metadata);
+  } else if (message is types.FileMessage) {
+    return StoredMessage(
+        id: message.id,
+        role: role,
+        type: messageFile,
+        name: message.name,
+        size: message.size.toInt(),
+        content: message.metadata?["text"]?.toString() ?? "",
+        createdAt: message.createdAt);
+  } else if (message is types.ImageMessage) {
+    final uri = message.uri;
+    try {
+      return StoredMessage(
+          id: message.id,
+          role: role,
+          type: messageImage,
+          name: message.name,
+          size: message.size.toInt(),
+          content: uri.startsWith("data:")
+              ? uri.substring(uri.indexOf(",") + 1)
+              : base64.encode(await File(uri).readAsBytes()),
+          createdAt: message.createdAt);
+    } catch (_) {
+      return null;
+    }
+  }
+  return null;
+}
+
+/// Converts a stored message back into a chat bubble.
+types.Message chatMessage(StoredMessage message) {
+  final author = (message.role == "user") ? user : assistant;
+  switch (message.type) {
+    case messageFile:
+      return types.FileMessage(
+          author: author,
+          id: message.id,
+          createdAt: message.createdAt,
+          name: message.name ?? "file",
+          size: message.size ?? 0,
+          mimeType: "text/plain",
+          uri: message.name ?? "file",
+          metadata: {"text": message.content});
+    case messageImage:
+      return types.ImageMessage(
+          author: author,
+          id: message.id,
+          createdAt: message.createdAt,
+          name: message.name ?? "image",
+          size: message.size ?? 0,
+          uri: "data:image/png;base64,${message.content}");
+    default:
+      return types.TextMessage(
+          author: author,
+          id: message.id,
+          createdAt: message.createdAt,
+          text: message.content,
+          metadata: message.meta);
+  }
+}
+
+/// Saves the visible chat ([messages]) as chat [uuid].
 void saveChat(String uuid, Function setState) async {
-  int index = -1;
-  for (var i = 0; i < (prefs!.getStringList("chats") ?? []).length; i++) {
-    if (jsonDecode((prefs!.getStringList("chats") ?? [])[i])["uuid"] == uuid) {
-      index = i;
-    }
-  }
-  if (index == -1) return;
-  List<Map<String, String>> history = [];
-  for (var i = 0; i < messages.length; i++) {
-    final message = messages[i];
-    final role = (message.author == user) ? "user" : "assistant";
-    if (message is types.TextMessage) {
-      final thinking = messageThinking(message);
-      final thinkingMs = messageThinkingMs(message);
-      history.add({
-        "role": role,
-        "content": message.text,
-        if (thinking.isNotEmpty) "thinking": thinking,
-        if (thinking.isNotEmpty && thinkingMs != null)
-          "thinkingMs": thinkingMs.toString()
-      });
-    } else if (message is types.FileMessage) {
-      history.add({
-        "role": role,
-        "type": "file",
-        "name": message.name,
-        "size": message.size.toString(),
-        "content": message.metadata?["text"]?.toString() ?? ""
-      });
-    } else if (message is types.ImageMessage) {
-      var uri = message.uri;
-      String content;
-      try {
-        content = uri.startsWith("data:")
-            ? uri.substring(uri.indexOf(",") + 1)
-            : base64.encode(await File(uri).readAsBytes());
-      } catch (_) {
-        continue;
-      }
-      history.add({
-        "role": role,
-        "type": "image",
-        "name": message.name,
-        "size": message.size.toString(),
-        "content": content
-      });
-    }
-  }
+  if (findChat(uuid) == null) return;
   if (messages.isEmpty && uuid == chatUuid) {
-    for (var i = 0; i < (prefs!.getStringList("chats") ?? []).length; i++) {
-      if (jsonDecode((prefs!.getStringList("chats") ?? [])[i])["uuid"] ==
-          chatUuid) {
-        List<String> tmp = prefs!.getStringList("chats")!;
-        tmp.removeAt(i);
-        prefs!.setStringList("chats", tmp);
-        chatUuid = null;
-        return;
-      }
-    }
+    removeChat(uuid);
+    chatUuid = null;
+    return;
   }
-  if (jsonDecode((prefs!.getStringList("chats") ?? [])[index])["messages"]
-          .length >=
-      1) {
-    if (jsonDecode(jsonDecode((prefs!.getStringList("chats") ?? [])[index])[
-            "messages"])[0]["role"] ==
-        "system") {
-      history.add({
-        "role": "system",
-        "content": jsonDecode(jsonDecode(
-                (prefs!.getStringList("chats") ?? [])[index])["messages"])[0]
-            ["content"]
-      });
-    }
-  } else {
-    var system = prefs?.getString("system") ?? "You are a helpful assistant";
-    if (prefs!.getBool("noMarkdown") ?? false) {
-      system +=
-          " You must not use markdown or any other formatting language in any way!";
-    }
-    history.add({"role": "system", "content": system});
+  // newest first on screen, oldest first in the store
+  final snapshot = messages.reversed.toList();
+  final storedModel = model;
+  final storedProvider = modelProvider;
+  final List<StoredMessage> stored = [];
+  for (final message in snapshot) {
+    final converted = await storedMessage(message);
+    if (converted != null) stored.add(converted);
   }
-  history = history.reversed.toList();
-  List<String> tmp = prefs!.getStringList("chats") ?? [];
-  tmp.removeAt(index);
-  tmp.insert(
-      0,
-      jsonEncode({
-        "title":
-            jsonDecode((prefs!.getStringList("chats") ?? [])[index])["title"],
-        "uuid": uuid,
-        "model": model,
-        "provider": modelProvider,
-        "messages": jsonEncode(history)
-      }));
-  prefs!.setStringList("chats", tmp);
+  var system = prefs?.getString("system") ?? "You are a helpful assistant";
+  if (prefs!.getBool("noMarkdown") ?? false) {
+    system +=
+        " You must not use markdown or any other formatting language in any way!";
+  }
+  await storeChat(uuid, stored,
+      model: storedModel, provider: storedProvider, system: system);
   setState(() {});
 }
 
-void loadChat(String uuid, Function setState) {
-  int index = -1;
-  for (var i = 0; i < (prefs!.getStringList("chats") ?? []).length; i++) {
-    if (jsonDecode((prefs!.getStringList("chats") ?? [])[i])["uuid"] == uuid) {
-      index = i;
-    }
-  }
-  if (index == -1) return;
+void loadChat(String uuid, Function setState) async {
+  final chat = findChat(uuid);
+  if (chat == null) return;
   messages = [];
   model = null;
   setState(() {});
-  var history = jsonDecode(
-      jsonDecode((prefs!.getStringList("chats") ?? [])[index])["messages"]);
-  for (var i = 0; i < history.length; i++) {
-    if (history[i]["role"] != "system") {
-      if ((history[i] as Map).containsKey("type") &&
-          history[i]["type"] == "file") {
-        messages.insert(
-            0,
-            types.FileMessage(
-                author: (history[i]["role"] == "user") ? user : assistant,
-                id: const Uuid().v4(),
-                name: history[i]["name"] ?? "file",
-                size: int.tryParse(history[i]["size"] ?? "0") ?? 0,
-                mimeType: "text/plain",
-                uri: history[i]["name"] ?? "file",
-                metadata: {"text": history[i]["content"] ?? ""}));
-      } else if ((history[i] as Map).containsKey("type") &&
-          history[i]["type"] == "image") {
-        messages.insert(
-            0,
-            types.ImageMessage(
-                author: (history[i]["role"] == "user") ? user : assistant,
-                id: const Uuid().v4(),
-                name: history[i]["name"],
-                size: int.parse(history[i]["size"]),
-                uri: "data:image/png;base64,${history[i]["content"]}"));
-      } else {
-        messages.insert(
-            0,
-            types.TextMessage(
-                author: (history[i]["role"] == "user") ? user : assistant,
-                id: const Uuid().v4(),
-                text: history[i]["content"],
-                metadata: thinkingMetadata(
-                    history[i]["thinking"]?.toString() ?? "",
-                    int.tryParse(history[i]["thinkingMs"]?.toString() ?? ""))));
-      }
-    }
-  }
-  var chat = jsonDecode((prefs!.getStringList("chats") ?? [])[index]);
-  model = chat["model"];
-  modelProvider = chat["provider"] ?? providerOllama;
+  final stored = await chatMessages(uuid);
+  // another chat was opened meanwhile
+  if (chatUuid != uuid) return;
+  messages = stored.reversed.map(chatMessage).toList();
+  model = chat.model;
+  modelProvider = chat.provider ?? providerOllama;
   setState(() {});
   refreshThinkingSupport(setState);
 }
@@ -802,15 +759,7 @@ Future<bool> deleteChatDialog(BuildContext context, Function setState,
   void delete(BuildContext context) {
     returnValue = true;
     if (takeAction) {
-      for (var i = 0; i < (prefs!.getStringList("chats") ?? []).length; i++) {
-        if (jsonDecode((prefs!.getStringList("chats") ?? [])[i])["uuid"] ==
-            uuid) {
-          List<String> tmp = prefs!.getStringList("chats")!;
-          tmp.removeAt(i);
-          prefs!.setStringList("chats", tmp);
-          break;
-        }
-      }
+      removeChat(uuid!);
       if (chatUuid == uuid) {
         messages = [];
         chatUuid = null;
@@ -977,7 +926,7 @@ Future<String> prompt(BuildContext context,
 
                                           try {
                                             var title = await getTitleAi(
-                                                getHistoryString(uuid));
+                                                await getHistoryString(uuid));
                                             controller.text = title;
                                             setLocalState(() {
                                               loading = false;
