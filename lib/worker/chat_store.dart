@@ -1,7 +1,9 @@
 // Chat storage.
 //
 // Chats live in a SQLite database: one row per chat, one row per message.
-// Images are kept as files next to it instead of inline base64. The chat
+// Images and the originals of attached files are files next to it, one
+// folder per chat (attachments/<chat id>/), named after the message id; the
+// database stores no paths. The chat
 // list is cached in memory ([chatList]) so the sidebar can be built
 // synchronously; a chat's messages are read when it is opened, and saving a
 // chat rewrites only that chat.
@@ -82,15 +84,16 @@ class StoredMessage {
   final String? name;
   final int? size;
 
-  /// Text of a text message, extracted text of a file, base64 of an image.
+  /// Text of a text message, extracted text of a file; for an image its
+  /// base64 where it isn't a file (web, import), otherwise empty.
   final String content;
   final int? createdAt;
 
   /// Everything else about the message: reasoning, usage statistics, ...
   final Map<String, dynamic>? meta;
 
-  /// Original of an attached file (a PDF, a text file) on disk, so it can
-  /// be opened later. Only the SQLite store keeps originals.
+  /// The image, or the original of an attached file, on disk. Only the
+  /// SQLite store keeps files.
   final String? dataPath;
 
   StoredMessage(
@@ -128,15 +131,26 @@ abstract class _Backend {
   Future<List<StoredMessage>> messages(String uuid);
   Future<void> putChat(ChatInfo chat);
   Future<void> putMessages(String uuid, List<StoredMessage> messages);
-  Future<void> deleteChat(String uuid);
+
+  /// Deletes the chat; with [keepFiles] its attachments stay until the next
+  /// [sweep] (an undo may still need them).
+  Future<void> deleteChat(String uuid, {bool keepFiles = false});
   Future<void> clear();
+
+  /// Deletes attachment files of chat [uuid] that no message uses anymore.
+  Future<void> cleanUp(String uuid);
+
+  /// [cleanUp] for every chat, and removes folders of deleted chats.
+  Future<void> sweep();
 }
 
 class _SqliteBackend implements _Backend {
   final Database db;
-  final Directory images;
 
-  _SqliteBackend(this.db, this.images);
+  /// One folder per chat holding its images and file originals.
+  final Directory attachments;
+
+  _SqliteBackend(this.db, this.attachments);
 
   static Future<_SqliteBackend> open(
       DatabaseFactory factory, Directory directory) async {
@@ -170,27 +184,37 @@ class _SqliteBackend implements _Backend {
               await db.execute(
                   "CREATE INDEX chats_updated ON chats (updated_at DESC)");
             }));
-    return _SqliteBackend(
-        db, Directory("${directory.path}${Platform.pathSeparator}images"));
+    final attachments =
+        Directory("${directory.path}${Platform.pathSeparator}attachments");
+    // the folder was called "images" before it held file originals too
+    final old = Directory("${directory.path}${Platform.pathSeparator}images");
+    if (await old.exists() && !await attachments.exists()) {
+      await old.rename(attachments.path);
+    }
+    return _SqliteBackend(db, attachments);
   }
 
-  Directory _imageDir(String uuid) =>
-      Directory("${images.path}${Platform.pathSeparator}$uuid");
+  Directory _chatDir(String uuid) =>
+      Directory("${attachments.path}${Platform.pathSeparator}$uuid");
 
   static String _safe(String text) =>
       text.replaceAll(RegExp(r"[^A-Za-z0-9_-]"), "_");
 
-  File _imageFile(String uuid, String id) =>
-      File("${_imageDir(uuid).path}${Platform.pathSeparator}${_safe(id)}");
-
-  /// Original of an attached file; keeps the extension so other apps know
-  /// what it is.
-  File _dataFile(String uuid, String id, String? name) {
-    final ext = (name != null && name.contains("."))
-        ? ".${_safe(name.split(".").last)}"
-        : "";
-    return File(
-        "${_imageDir(uuid).path}${Platform.pathSeparator}${_safe(id)}.file$ext");
+  /// Where the image or file original of a message lives; null for text.
+  /// File originals keep their extension so other apps know what they are.
+  File? _attachment(String uuid, String type, String id, String? name) {
+    if (type == messageImage) {
+      return File(
+          "${_chatDir(uuid).path}${Platform.pathSeparator}${_safe(id)}");
+    }
+    if (type == messageFile) {
+      final ext = (name != null && name.contains("."))
+          ? ".${_safe(name.split(".").last)}"
+          : "";
+      return File(
+          "${_chatDir(uuid).path}${Platform.pathSeparator}${_safe(id)}.file$ext");
+    }
+    return null;
   }
 
   @override
@@ -206,28 +230,21 @@ class _SqliteBackend implements _Backend {
     final List<StoredMessage> result = [];
     for (final row in rows) {
       final type = row["type"].toString();
-      var content = row["content"].toString();
-      if (type == messageImage) {
-        try {
-          content = base64.encode(
-              await _imageFile(uuid, row["id"].toString()).readAsBytes());
-        } catch (_) {
-          continue; // the image is gone; skip it rather than fail the chat
-        }
-      }
-      final data = type == messageFile
-          ? _dataFile(uuid, row["id"].toString(), row["name"]?.toString())
-          : null;
+      final file = _attachment(
+          uuid, type, row["id"].toString(), row["name"]?.toString());
+      final exists = file != null && await file.exists();
+      // an image without its file can't be shown; a file still has its text
+      if (type == messageImage && !exists) continue;
       result.add(StoredMessage(
-          dataPath: (data != null && await data.exists()) ? data.path : null,
           id: row["id"].toString(),
           role: row["role"].toString(),
           type: type,
           name: row["name"]?.toString(),
           size: _int(row["size"]),
-          content: content,
+          content: row["content"].toString(),
           createdAt: _int(row["created_at"]),
-          meta: _meta(row["meta"])));
+          meta: _meta(row["meta"]),
+          dataPath: exists ? file.path : null));
     }
     return result;
   }
@@ -241,27 +258,22 @@ class _SqliteBackend implements _Backend {
 
   @override
   Future<void> putMessages(String uuid, List<StoredMessage> messages) async {
-    // images and file originals are written once, named after the message id
-    final Set<String> keep = {};
+    // attachments are written once, named after the message id
     for (final message in messages) {
-      if (message.type == messageFile && message.dataPath != null) {
-        final file = _dataFile(uuid, message.id, message.name);
-        keep.add(file.path);
-        if (file.path == message.dataPath || await file.exists()) continue;
-        try {
-          await file.parent.create(recursive: true);
+      final file = _attachment(uuid, message.type, message.id, message.name);
+      if (file == null) continue;
+      if (file.path == message.dataPath || await file.exists()) continue;
+      try {
+        await file.parent.create(recursive: true);
+        if (message.dataPath != null &&
+            await File(message.dataPath!).exists()) {
           await File(message.dataPath!).copy(file.path);
-        } catch (_) {
-          keep.remove(file.path); // the original is gone; keep the text
+        } else if (message.type == messageImage) {
+          await file.writeAsBytes(base64.decode(message.content), flush: true);
         }
-        continue;
+      } catch (e) {
+        debugPrint("chat store: attachment of ${message.id} not saved ($e)");
       }
-      if (message.type != messageImage) continue;
-      final file = _imageFile(uuid, message.id);
-      keep.add(file.path);
-      if (await file.exists()) continue;
-      await file.parent.create(recursive: true);
-      await file.writeAsBytes(base64.decode(message.content), flush: true);
     }
 
     await db.transaction((txn) async {
@@ -286,28 +298,17 @@ class _SqliteBackend implements _Backend {
       }
       await batch.commit(noResult: true);
     });
-
-    // drop images of messages that were deleted from the chat
-    final dir = _imageDir(uuid);
-    if (await dir.exists()) {
-      await for (final entity in dir.list()) {
-        if (entity is File && !keep.contains(entity.path)) {
-          try {
-            await entity.delete();
-          } catch (_) {}
-        }
-      }
-    }
   }
 
   @override
-  Future<void> deleteChat(String uuid) async {
+  Future<void> deleteChat(String uuid, {bool keepFiles = false}) async {
     await db.transaction((txn) async {
       await txn.delete("messages", where: "chat_uuid = ?", whereArgs: [uuid]);
       await txn.delete("chats", where: "uuid = ?", whereArgs: [uuid]);
     });
+    if (keepFiles) return;
     try {
-      await _imageDir(uuid).delete(recursive: true);
+      await _chatDir(uuid).delete(recursive: true);
     } catch (_) {}
   }
 
@@ -318,8 +319,50 @@ class _SqliteBackend implements _Backend {
       await txn.delete("chats");
     });
     try {
-      await images.delete(recursive: true);
+      await attachments.delete(recursive: true);
     } catch (_) {}
+  }
+
+  @override
+  Future<void> cleanUp(String uuid) async {
+    final dir = _chatDir(uuid);
+    if (!await dir.exists()) return;
+    final chat = await db.query("chats",
+        columns: ["uuid"], where: "uuid = ?", whereArgs: [uuid]);
+    if (chat.isEmpty) {
+      await dir.delete(recursive: true);
+      return;
+    }
+    final rows = await db.query("messages",
+        columns: ["id", "type", "name"],
+        where: "chat_uuid = ?",
+        whereArgs: [uuid]);
+    final keep = {
+      for (final row in rows)
+        _attachment(uuid, row["type"].toString(), row["id"].toString(),
+                row["name"]?.toString())
+            ?.path
+    };
+    await for (final entity in dir.list()) {
+      if (entity is File && !keep.contains(entity.path)) {
+        try {
+          await entity.delete();
+        } catch (_) {}
+      }
+    }
+  }
+
+  @override
+  Future<void> sweep() async {
+    if (!await attachments.exists()) return;
+    await for (final entity in attachments.list()) {
+      if (entity is! Directory) continue;
+      try {
+        await cleanUp(entity.uri.pathSegments.lastWhere((s) => s.isNotEmpty));
+      } catch (e) {
+        debugPrint("chat store: cleaning ${entity.path} failed ($e)");
+      }
+    }
   }
 }
 
@@ -374,24 +417,40 @@ class _PrefsBackend implements _Backend {
   }
 
   @override
-  Future<void> putMessages(String uuid, List<StoredMessage> messages) =>
-      prefs.setString(
-          "chat.$uuid",
-          jsonEncode(messages
-              .map((m) => {
-                    "id": m.id,
-                    "role": m.role,
-                    "type": m.type,
-                    if (m.name != null) "name": m.name,
-                    if (m.size != null) "size": m.size,
-                    "content": m.content,
-                    if (m.createdAt != null) "createdAt": m.createdAt,
-                    if (m.meta != null && m.meta!.isNotEmpty) "meta": m.meta
-                  })
-              .toList()));
+  Future<void> putMessages(String uuid, List<StoredMessage> messages) async {
+    final List<Map<String, dynamic>> encoded = [];
+    for (final m in messages) {
+      // without SQLite images are kept inline
+      var content = m.content;
+      if (m.type == messageImage && content.isEmpty && m.dataPath != null) {
+        try {
+          content = base64.encode(await File(m.dataPath!).readAsBytes());
+        } catch (_) {
+          continue;
+        }
+      }
+      encoded.add({
+        "id": m.id,
+        "role": m.role,
+        "type": m.type,
+        if (m.name != null) "name": m.name,
+        if (m.size != null) "size": m.size,
+        "content": content,
+        if (m.createdAt != null) "createdAt": m.createdAt,
+        if (m.meta != null && m.meta!.isNotEmpty) "meta": m.meta
+      });
+    }
+    await prefs.setString("chat.$uuid", jsonEncode(encoded));
+  }
 
   @override
-  Future<void> deleteChat(String uuid) async {
+  Future<void> cleanUp(String uuid) async {}
+
+  @override
+  Future<void> sweep() async {}
+
+  @override
+  Future<void> deleteChat(String uuid, {bool keepFiles = false}) async {
     await prefs.remove("chat.$uuid");
     await _saveIndex(_index()..removeWhere((c) => c.uuid == uuid));
   }
@@ -487,10 +546,20 @@ void renameChat(String uuid, String title) {
   _enqueue((b) => b.putChat(chat));
 }
 
-void removeChat(String uuid) {
+/// Deletes chat [uuid]. With [keepFiles] its images and files stay on disk
+/// until [cleanUpChatFiles] or [sweepChatFiles] (an undo may need them).
+void removeChat(String uuid, {bool keepFiles = false}) {
   chatList.removeWhere((c) => c.uuid == uuid);
-  _enqueue((b) => b.deleteChat(uuid));
+  _enqueue((b) => b.deleteChat(uuid, keepFiles: keepFiles));
 }
+
+/// Deletes attachment files of chat [uuid] that no message uses anymore.
+/// Saving never deletes files, so that deleting messages can be undone.
+Future<void> cleanUpChatFiles(String uuid) => _enqueue((b) => b.cleanUp(uuid));
+
+/// [cleanUpChatFiles] for all chats, plus folders of deleted chats; runs at
+/// startup, when no undo can be pending.
+Future<void> sweepChatFiles() => _enqueue((b) => b.sweep());
 
 /// Replaces the messages of chat [uuid] and moves it to the top.
 Future<void> storeChat(String uuid, List<StoredMessage> messages,
@@ -521,7 +590,26 @@ Future<List<StoredMessage>> chatMessages(String uuid) =>
 Future<String> exportChats() async {
   final List<String> result = [];
   for (final chat in List.of(chatList)) {
-    final messages = await chatMessages(chat.uuid);
+    final List<StoredMessage> messages = [];
+    for (final m in await chatMessages(chat.uuid)) {
+      if (m.type == messageImage && m.content.isEmpty) {
+        // exports carry images inline, never paths
+        if (m.dataPath == null) continue;
+        try {
+          messages.add(StoredMessage(
+              id: m.id,
+              role: m.role,
+              type: m.type,
+              name: m.name,
+              size: m.size,
+              content: base64.encode(await File(m.dataPath!).readAsBytes()),
+              createdAt: m.createdAt,
+              meta: m.meta));
+        } catch (_) {}
+        continue;
+      }
+      messages.add(m);
+    }
     result.add(jsonEncode({
       "title": chat.title,
       "uuid": chat.uuid,

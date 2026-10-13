@@ -37,8 +37,8 @@ void showMessageActions(
   if (!chatAllowed || chatUuid == null) return;
   final l10n = AppLocalizations.of(context)!;
   final copyText = _copyText(message);
-  final canEdit = message is types.TextMessage &&
-      (prefs!.getBool("enableEditing") ?? true);
+  final canEdit =
+      message is types.TextMessage && (prefs!.getBool("enableEditing") ?? true);
   final isLast = messages.isNotEmpty && messages.first.id == message.id;
 
   showModalBottomSheet(
@@ -100,8 +100,13 @@ void _editMessage(
   setState(() {});
 }
 
+/// Deletions per chat whose undo is still offered. Their images and files
+/// are deleted only once none is left.
+final Map<String, int> _pendingUndos = {};
+
 /// Removes [message] (and with [andBelow] every newer one) and offers to
-/// undo it.
+/// undo it. The messages leave the chat right away; their images and files
+/// are deleted when the undo is no longer offered.
 void _deleteMessages(
     BuildContext context, types.Message message, Function setState,
     {bool andBelow = false}) {
@@ -124,23 +129,36 @@ void _deleteMessages(
 
   final l10n = AppLocalizations.of(context)!;
   final removed = before.length - messages.length;
+  _pendingUndos[uuid] = (_pendingUndos[uuid] ?? 0) + 1;
   ScaffoldMessenger.of(context).hideCurrentSnackBar();
-  ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-      content: Text(l10n.messagesDeleted(removed)),
-      duration: const Duration(seconds: 6),
-      showCloseIcon: true,
-      action: SnackBarAction(
-          label: l10n.undo,
-          onPressed: () {
-            if (!chatAllowed) return;
-            // the chat is no longer open; restore it in the background
-            if (chatUuid != uuid && chatUuid != null) return;
-            if (findChat(uuid) == null) createChat(uuid, title);
-            chatUuid = uuid;
-            messages = before;
-            saveChat(uuid, setState);
-            setState(() {});
-          })));
+  ScaffoldMessenger.of(context)
+      .showSnackBar(SnackBar(
+          content: Text(l10n.messagesDeleted(removed)),
+          duration: const Duration(seconds: 6),
+          showCloseIcon: true,
+          action: SnackBarAction(
+              label: l10n.undo,
+              onPressed: () {
+                if (!chatAllowed) return;
+                // another chat is open by now; leave it
+                if (chatUuid != uuid && chatUuid != null) return;
+                if (findChat(uuid) == null) createChat(uuid, title);
+                chatUuid = uuid;
+                messages = before;
+                saveChat(uuid, setState);
+                setState(() {});
+              })))
+      .closed
+      .then((_) {
+    final left = (_pendingUndos[uuid] ?? 1) - 1;
+    if (left > 0) {
+      _pendingUndos[uuid] = left;
+      return;
+    }
+    _pendingUndos.remove(uuid);
+    // runs after any restoring save, so restored files are kept
+    cleanUpChatFiles(uuid);
+  });
 }
 
 // ---------------------------------------------------------------------------
@@ -213,25 +231,23 @@ class _TextViewer extends StatelessWidget {
 Future<void> _openImageWithSystem(
     BuildContext context, types.ImageMessage message) async {
   try {
+    // a copy named like the original: stored images have no extension,
+    // which other apps need to know the type
     final uri = message.uri;
-    String path;
-    if (uri.startsWith("data:")) {
-      final dir = Directory(
-          "${(await getTemporaryDirectory()).path}/attachments/${message.id}");
-      await dir.create(recursive: true);
-      var name = message.name.replaceAll(RegExp(r'[/\\]'), "_");
-      if (!name.contains(".")) name += ".png";
-      final file = File("${dir.path}/$name");
-      if (!await file.exists()) {
-        await file.writeAsBytes(
-            base64.decode(uri.substring(uri.indexOf(",") + 1)),
-            flush: true);
-      }
-      path = file.path;
-    } else {
-      path = uri;
+    final dir = Directory(
+        "${(await getTemporaryDirectory()).path}/attachments/${message.id}");
+    await dir.create(recursive: true);
+    var name = message.name.replaceAll(RegExp(r'[/\\]'), "_");
+    if (!name.contains(".")) name += ".png";
+    final file = File("${dir.path}/$name");
+    if (!await file.exists()) {
+      await file.writeAsBytes(
+          uri.startsWith("data:")
+              ? base64.decode(uri.substring(uri.indexOf(",") + 1))
+              : await File(uri).readAsBytes(),
+          flush: true);
     }
-    if (await _openWithSystem(path)) return;
+    if (await _openWithSystem(file.path)) return;
   } catch (_) {}
   if (!context.mounted) return;
   ScaffoldMessenger.of(context).showSnackBar(SnackBar(
@@ -242,15 +258,48 @@ Future<void> _openImageWithSystem(
 // ---------------------------------------------------------------------------
 // image viewer
 
+// Inline images (web) decoded once per message instead of on every rebuild.
+final Map<String, MemoryImage> _inlineImages = {};
+
 ImageProvider imageProvider(types.ImageMessage message) {
   final uri = message.uri;
   if (uri.startsWith("data:")) {
-    return MemoryImage(base64.decode(uri.substring(uri.indexOf(",") + 1)));
+    final key = "${message.id}:${uri.length}";
+    return _inlineImages[key] ??=
+        MemoryImage(base64.decode(uri.substring(uri.indexOf(",") + 1)));
   }
   if (uri.startsWith("http://") || uri.startsWith("https://")) {
     return NetworkImage(uri);
   }
   return FileImage(File(uri));
+}
+
+/// An image in the chat. Decoded once, at the size it is shown, and kept in
+/// Flutter's image cache.
+class ChatImage extends StatelessWidget {
+  final types.ImageMessage message;
+  final double width;
+
+  const ChatImage({super.key, required this.message, required this.width});
+
+  @override
+  Widget build(BuildContext context) {
+    final pixels = (width * MediaQuery.devicePixelRatioOf(context)).round();
+    return SizedBox(
+        width: width,
+        child: ClipRRect(
+            borderRadius: BorderRadius.circular(12),
+            child: Image(
+                image: ResizeImage(imageProvider(message),
+                    width: pixels, policy: ResizeImagePolicy.fit),
+                width: width,
+                fit: BoxFit.contain,
+                gaplessPlayback: true,
+                errorBuilder: (context, error, stackTrace) => SizedBox(
+                    height: width * 0.75,
+                    child: const Center(
+                        child: Icon(Icons.broken_image_rounded))))));
+  }
 }
 
 void openImageViewer(BuildContext context, types.ImageMessage message) {

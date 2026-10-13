@@ -50,6 +50,11 @@ void main() {
   }
 }
 
+/// The bytes of an image message, wherever the store keeps them.
+List<int> imageBytes(StoredMessage message) => message.dataPath != null
+    ? File(message.dataPath!).readAsBytesSync()
+    : base64.decode(message.content);
+
 void tests(DatabaseFactory factory, bool sqlite) {
   late Directory dir;
 
@@ -87,12 +92,14 @@ void tests(DatabaseFactory factory, bool sqlite) {
 
     final messages = await chatMessages("a");
     expect(messages.map((m) => m.type), ["image", "file", "text", "text"]);
-    expect(messages[0].content, png);
+    expect(imageBytes(messages[0]), base64.decode(png));
+    // on SQLite an image is a file, not a database value
+    expect(messages[0].content, sqlite ? isEmpty : png);
     expect(messages[1].content, "hello");
     expect(messages[3].meta, {"thinking": "greet back", "thinkingMs": 1200});
     // the image is a file, not a database value
     if (sqlite) {
-      expect(Directory("${dir.path}/images/a").listSync(), hasLength(1));
+      expect(Directory("${dir.path}/attachments/a").listSync(), hasLength(1));
     }
   });
 
@@ -105,8 +112,7 @@ void tests(DatabaseFactory factory, bool sqlite) {
         "b",
         [
           ...messages,
-          StoredMessage(
-              role: "assistant", content: "more", meta: {"usage": 3})
+          StoredMessage(role: "assistant", content: "more", meta: {"usage": 3})
         ],
         model: "llama3",
         provider: "ollama");
@@ -116,11 +122,21 @@ void tests(DatabaseFactory factory, bool sqlite) {
     expect(saved, hasLength(4));
     expect(saved.last.meta, {"usage": 3});
 
-    // dropping the image message deletes its file
+    // dropping the image message keeps its file (for undo) until the
+    // clean-up runs
     final a = await chatMessages("a");
     await storeChat("a", a.where((m) => m.type != messageImage).toList());
     if (sqlite) {
-      expect(Directory("${dir.path}/images/a").listSync(), isEmpty);
+      expect(Directory("${dir.path}/attachments/a").listSync(), hasLength(1));
+    }
+    // undo: saving the old messages again brings the image back
+    await storeChat("a", a);
+    expect(imageBytes((await chatMessages("a")).first), base64.decode(png));
+
+    await storeChat("a", a.where((m) => m.type != messageImage).toList());
+    await cleanUpChatFiles("a");
+    if (sqlite) {
+      expect(Directory("${dir.path}/attachments/a").listSync(), isEmpty);
     }
   });
 
@@ -153,7 +169,7 @@ void tests(DatabaseFactory factory, bool sqlite) {
 
     expect(await importChats(export, replace: false), 2);
     expect(chatList.map((c) => c.uuid).toSet(), {"a", "b", "c"});
-    expect((await chatMessages("a")).first.content, png);
+    expect(imageBytes((await chatMessages("a")).first), base64.decode(png));
 
     expect(await importChats(export, replace: true), 2);
     expect(chatList.map((c) => c.uuid).toSet(), {"a", "b"});
@@ -186,10 +202,62 @@ void tests(DatabaseFactory factory, bool sqlite) {
       await storeChat("f", [loaded]);
       expect(File(loaded.dataPath!).existsSync(), isTrue);
       await storeChat("f", [StoredMessage(role: "user", content: "x")]);
+      expect(File(loaded.dataPath!).existsSync(), isTrue);
+      await cleanUpChatFiles("f");
       expect(File(loaded.dataPath!).existsSync(), isFalse);
     } else {
       expect(loaded.dataPath, isNull);
     }
+  });
+
+  test("a chat emptied for undo keeps its files until the sweep", () async {
+    await open({
+      "chats": [legacyChat("a", "A", image: true)]
+    });
+    final messages = await chatMessages("a");
+    removeChat("a", keepFiles: true);
+    expect(chatList, isEmpty);
+
+    // undo
+    createChat("a", "A");
+    await storeChat("a", messages);
+    expect(imageBytes((await chatMessages("a")).first), base64.decode(png));
+
+    // no undo: the sweep at the next start removes the folder
+    removeChat("a", keepFiles: true);
+    if (sqlite) {
+      expect(Directory("${dir.path}/attachments/a").existsSync(), isTrue);
+    }
+    await sweepChatFiles();
+    if (sqlite) {
+      expect(Directory("${dir.path}/attachments/a").existsSync(), isFalse);
+    }
+  });
+
+  test("moves the old images folder to attachments", () async {
+    if (!sqlite) return;
+    await open({
+      "chats": [legacyChat("a", "A", image: true)]
+    });
+    final file = File((await chatMessages("a")).first.dataPath!);
+    final prefs = await SharedPreferences.getInstance();
+    await Directory("${dir.path}/attachments").rename("${dir.path}/images");
+    await initChatStore(prefs, directory: dir, factory: factory);
+    expect(Directory("${dir.path}/images").existsSync(), isFalse);
+    expect(file.existsSync(), isTrue);
+    expect((await chatMessages("a")).first.dataPath, file.path);
+  });
+
+  test("exports images inline, without paths", () async {
+    await open({
+      "chats": [legacyChat("a", "A", image: true)]
+    });
+    final export = await exportChats();
+    expect(export, isNot(contains(dir.path)));
+    final chat = jsonDecode((jsonDecode(export) as List).first as String);
+    final image = (jsonDecode(chat["messages"]) as List)
+        .firstWhere((m) => m["type"] == "image");
+    expect(image["content"], png);
   });
 
   test("removing a chat deletes its messages and images", () async {
@@ -199,7 +267,7 @@ void tests(DatabaseFactory factory, bool sqlite) {
     removeChat("a");
     expect(await chatMessages("a"), isEmpty);
     if (sqlite) {
-      expect(Directory("${dir.path}/images/a").existsSync(), isFalse);
+      expect(Directory("${dir.path}/attachments/a").existsSync(), isFalse);
     }
   });
 }

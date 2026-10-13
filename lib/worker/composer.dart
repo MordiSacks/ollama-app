@@ -51,11 +51,14 @@ const int maxAttachmentChars = 150000;
 class PendingAttachment {
   final String name;
   final int size;
-  final String? imageBase64; // set for images
-  final String? text; // set for text/pdf files
+  /// Image data, only on the web (which has no files); elsewhere images
+  /// are in [path].
+  final String? imageBase64;
+  final String? text; // set for text/pdf files, null for images
   final bool truncated;
 
-  /// Copy of the original file, so it can be opened from the chat later.
+  /// Copy of the original file (the image itself, or the original of a
+  /// text/pdf file), kept until the chat is saved.
   final String? path;
 
   const PendingAttachment(
@@ -66,7 +69,7 @@ class PendingAttachment {
       this.truncated = false,
       this.path});
 
-  bool get isImage => imageBase64 != null;
+  bool get isImage => text == null;
 
   types.Message toMessage() {
     if (isImage) {
@@ -76,7 +79,7 @@ class PendingAttachment {
           createdAt: DateTime.now().millisecondsSinceEpoch,
           name: name,
           size: size,
-          uri: "data:image/png;base64,$imageBase64");
+          uri: path ?? "data:image/png;base64,$imageBase64");
     }
     return types.FileMessage(
         author: user,
@@ -92,18 +95,15 @@ class PendingAttachment {
   /// Rebuilds an attachment from a chat message (used to restore a draft).
   static Future<PendingAttachment?> fromMessage(types.Message message) async {
     if (message is types.ImageMessage) {
-      String data;
-      if (message.uri.startsWith("data:")) {
-        data = message.uri.substring(message.uri.indexOf(",") + 1);
-      } else {
-        try {
-          data = base64.encode(await File(message.uri).readAsBytes());
-        } catch (_) {
-          return null;
-        }
+      final uri = message.uri;
+      if (uri.startsWith("data:")) {
+        return PendingAttachment(
+            name: message.name,
+            size: message.size.toInt(),
+            imageBase64: uri.substring(uri.indexOf(",") + 1));
       }
       return PendingAttachment(
-          name: message.name, size: message.size.toInt(), imageBase64: data);
+          name: message.name, size: message.size.toInt(), path: uri);
     }
     if (message is types.FileMessage) {
       return PendingAttachment(
@@ -150,15 +150,40 @@ String _extractPdfText(Uint8List bytes) {
   }
 }
 
+/// Deletes copies of picked files left from earlier runs; saved chats have
+/// their own copies. Copies made since [before] (the app start) are kept.
+Future<void> cleanTemporaryAttachments(DateTime before) async {
+  if (kIsWeb) return;
+  try {
+    final dir =
+        Directory("${(await getTemporaryDirectory()).path}/attachments");
+    if (!await dir.exists()) return;
+    await for (final entity in dir.list()) {
+      try {
+        if ((await entity.stat()).modified.isBefore(before)) {
+          await entity.delete(recursive: true);
+        }
+      } catch (_) {}
+    }
+  } catch (_) {}
+}
+
+/// An image attachment: a file, or base64 where there are no files (web).
+Future<PendingAttachment> imageAttachment(String name, Uint8List bytes) async {
+  final path = await _keepOriginal(name, bytes);
+  return PendingAttachment(
+      name: name,
+      size: bytes.length,
+      path: path,
+      imageBase64: path == null ? base64.encode(bytes) : null);
+}
+
 /// Turns picked file bytes into an attachment, or null if unsupported.
 Future<PendingAttachment?> attachmentFromBytes(
     String name, Uint8List bytes) async {
   final ext = name.contains(".") ? name.split(".").last.toLowerCase() : "";
 
-  if (_imageExtensions.contains(ext)) {
-    return PendingAttachment(
-        name: name, size: bytes.length, imageBase64: base64.encode(bytes));
-  }
+  if (_imageExtensions.contains(ext)) return imageAttachment(name, bytes);
 
   String? text;
   if (ext == "pdf") {
@@ -311,12 +336,10 @@ class _ChatComposerState extends State<ChatComposer> {
     final result = await ImagePicker()
         .pickImage(source: source, maxWidth: 2048, imageQuality: 85);
     if (result == null) return;
-    final bytes = await result.readAsBytes();
+    final attachment =
+        await imageAttachment(result.name, await result.readAsBytes());
     if (!mounted) return;
-    _addAttachment(PendingAttachment(
-        name: result.name,
-        size: bytes.length,
-        imageBase64: base64.encode(bytes)));
+    _addAttachment(attachment);
   }
 
   void _openAttachMenu() {

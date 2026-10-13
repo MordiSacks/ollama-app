@@ -1,5 +1,4 @@
 import 'dart:convert';
-import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
@@ -616,7 +615,7 @@ void addModel(BuildContext context, Function setState) async {
 }
 
 /// Converts a chat bubble into its stored form; null if it can't be stored.
-Future<StoredMessage?> storedMessage(types.Message message) async {
+StoredMessage? storedMessage(types.Message message) {
   final role = (message.author == user) ? "user" : "assistant";
   if (message is types.TextMessage) {
     return StoredMessage(
@@ -639,20 +638,16 @@ Future<StoredMessage?> storedMessage(types.Message message) async {
             : null);
   } else if (message is types.ImageMessage) {
     final uri = message.uri;
-    try {
-      return StoredMessage(
-          id: message.id,
-          role: role,
-          type: messageImage,
-          name: message.name,
-          size: message.size.toInt(),
-          content: uri.startsWith("data:")
-              ? uri.substring(uri.indexOf(",") + 1)
-              : base64.encode(await File(uri).readAsBytes()),
-          createdAt: message.createdAt);
-    } catch (_) {
-      return null;
-    }
+    final inline = uri.startsWith("data:");
+    return StoredMessage(
+        id: message.id,
+        role: role,
+        type: messageImage,
+        name: message.name,
+        size: message.size.toInt(),
+        content: inline ? uri.substring(uri.indexOf(",") + 1) : "",
+        createdAt: message.createdAt,
+        dataPath: inline ? null : uri);
   }
   return null;
 }
@@ -678,7 +673,7 @@ types.Message chatMessage(StoredMessage message) {
           createdAt: message.createdAt,
           name: message.name ?? "image",
           size: message.size ?? 0,
-          uri: "data:image/png;base64,${message.content}");
+          uri: message.dataPath ?? "data:image/png;base64,${message.content}");
     default:
       return types.TextMessage(
           author: author,
@@ -693,7 +688,8 @@ types.Message chatMessage(StoredMessage message) {
 void saveChat(String uuid, Function setState) async {
   if (findChat(uuid) == null) return;
   if (messages.isEmpty && uuid == chatUuid) {
-    removeChat(uuid);
+    // an emptied chat is deleted, but its files stay for a possible undo
+    removeChat(uuid, keepFiles: true);
     chatUuid = null;
     return;
   }
@@ -703,7 +699,7 @@ void saveChat(String uuid, Function setState) async {
   final storedProvider = modelProvider;
   final List<StoredMessage> stored = [];
   for (final message in snapshot) {
-    final converted = await storedMessage(message);
+    final converted = storedMessage(message);
     if (converted != null) stored.add(converted);
   }
   var system = prefs?.getString("system") ?? "You are a helpful assistant";

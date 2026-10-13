@@ -140,7 +140,11 @@ class _AppState extends State<App> {
 
       SharedPreferences.setPrefix("ollama.");
       SharedPreferences tmp = await SharedPreferences.getInstance();
+      final started = DateTime.now();
       await initChatStore(tmp);
+      // files of deleted messages and leftover copies of picked files
+      sweepChatFiles();
+      cleanTemporaryAttachments(started);
       setState(() {
         prefs = tmp;
       });
@@ -1264,11 +1268,11 @@ class _MainAppState extends State<MainApp> {
                               },
                               imageMessageBuilder: (p0,
                                   {required messageWidth}) {
-                                return SizedBox(
-                                    width:
-                                        desktopLayout(context) ? 360.0 : 160.0,
-                                    child: MarkdownBody(
-                                        data: "![${p0.name}](${p0.uri})"));
+                                return ChatImage(
+                                    message: p0,
+                                    width: desktopLayout(context)
+                                        ? 360.0
+                                        : 160.0);
                               },
                               disableImageGallery: true,
                               emptyState: Center(
