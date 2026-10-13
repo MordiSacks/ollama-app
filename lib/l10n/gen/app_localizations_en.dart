@@ -640,4 +640,24 @@ class AppLocalizationsEn extends AppLocalizations {
   String speechServerTestHeard(String text) {
     return 'Recognized: $text';
   }
+
+  @override
+  String get thinkingActive => 'Thinking…';
+
+  @override
+  String get thinkingDone => 'Thoughts';
+
+  @override
+  String get thinkingDoneBrief => 'Thought briefly';
+
+  @override
+  String thinkingDoneSeconds(int seconds) {
+    return 'Thought for ${seconds}s';
+  }
+
+  @override
+  String get thinkingToggleOn => 'Thinking on: tap to answer directly';
+
+  @override
+  String get thinkingToggleOff => 'Thinking off: tap to let the model think first';
 }

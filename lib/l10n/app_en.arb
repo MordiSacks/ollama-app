@@ -1001,5 +1001,34 @@
                 "type": "String"
             }
         }
+    },
+    "thinkingActive": "Thinking…",
+    "@thinkingActive": {
+        "description": "Label of the reasoning block while a model is still thinking"
+    },
+    "thinkingDone": "Thoughts",
+    "@thinkingDone": {
+        "description": "Label of the reasoning block when the duration is unknown"
+    },
+    "thinkingDoneBrief": "Thought briefly",
+    "@thinkingDoneBrief": {
+        "description": "Label of the reasoning block when the model thought for less than a second"
+    },
+    "thinkingDoneSeconds": "Thought for {seconds}s",
+    "@thinkingDoneSeconds": {
+        "description": "Label of the reasoning block with the time the model spent thinking",
+        "placeholders": {
+            "seconds": {
+                "type": "int"
+            }
+        }
+    },
+    "thinkingToggleOn": "Thinking on: tap to answer directly",
+    "@thinkingToggleOn": {
+        "description": "Tooltip of the composer button while the model is allowed to reason before answering"
+    },
+    "thinkingToggleOff": "Thinking off: tap to let the model think first",
+    "@thinkingToggleOff": {
+        "description": "Tooltip of the composer button while reasoning is switched off"
     }
 }

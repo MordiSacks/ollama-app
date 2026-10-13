@@ -21,6 +21,7 @@ import 'worker/clients.dart';
 import 'worker/composer.dart';
 import 'worker/llm.dart';
 import 'worker/read_aloud.dart';
+import 'worker/thinking.dart';
 
 import 'package:shared_preferences/shared_preferences.dart';
 // ignore: depend_on_referenced_packages
@@ -835,6 +836,7 @@ class _MainAppState extends State<MainApp> {
         }
 
         setState(() {});
+        refreshThinkingSupport(setState);
         if (prefs!.getBool("checkUpdateOnSettingsOpen") ?? true) {
           updateDetectedOnStart = await checkUpdate(setState);
         }
@@ -1037,14 +1039,25 @@ class _MainAppState extends State<MainApp> {
                                     const TextStyle(color: Colors.white);
                                 bool greyed = false;
                                 String text = p0.text;
-                                if (text.trim() == "") {
+                                String thinking = messageThinking(p0);
+                                if (thinking.isEmpty && p0.author != user) {
+                                  // older chats kept the reasoning inline
+                                  final split = splitThinking(text);
+                                  thinking = split.thinking;
+                                  text = split.answer;
+                                }
+                                final bool streaming =
+                                    p0.id == streamingMessageId;
+                                final bool stillThinking =
+                                    streaming && text.trim().isEmpty;
+                                if (text.trim() == "" && !stillThinking) {
                                   text =
                                       "_Empty AI response, try restarting conversation_";
                                   greyed = true;
                                 }
                                 final bool showActions = p0.author != user &&
                                     !greyed &&
-                                    p0.id != streamingMessageId;
+                                    !streaming;
                                 final bool reading =
                                     speakingMessageId == p0.id;
                                 final Color actionColor = Theme.of(context)
@@ -1062,6 +1075,13 @@ class _MainAppState extends State<MainApp> {
                                             CrossAxisAlignment.start,
                                         mainAxisSize: MainAxisSize.min,
                                         children: [
+                                    if (thinking.isNotEmpty)
+                                      ThinkingBlock(
+                                          messageId: p0.id,
+                                          thinking: thinking,
+                                          thinkingMs: messageThinkingMs(p0),
+                                          active: stillThinking),
+                                    if (!stillThinking)
                                     Theme(
                                       data: Theme.of(context).copyWith(
                                           scrollbarTheme:
@@ -1244,7 +1264,7 @@ class _MainAppState extends State<MainApp> {
                                                   onPressed: () {
                                                     selectionHaptic();
                                                     toggleReadAloud(
-                                                        p0.id, p0.text);
+                                                        p0.id, text);
                                                   },
                                                   icon: Icon(reading
                                                       ? Icons.stop_circle_rounded
@@ -1262,7 +1282,7 @@ class _MainAppState extends State<MainApp> {
                                                     selectionHaptic();
                                                     Clipboard.setData(
                                                         ClipboardData(
-                                                            text: p0.text));
+                                                            text: text));
                                                     ScaffoldMessenger.of(
                                                             context)
                                                         .showSnackBar(SnackBar(
@@ -1313,6 +1333,7 @@ class _MainAppState extends State<MainApp> {
                                   generating: !chatAllowed && model != null,
                                   imagesSupported: multimodal ||
                                       modelProvider == providerOpenAi,
+                                  thinkingSupported: modelCanThink(),
                                   onVoiceMode: (prefs?.getBool(
                                                   "voiceModeEnabled") ??
                                               false) &&
@@ -1410,6 +1431,7 @@ class _MainAppState extends State<MainApp> {
                                   createdAt: p1.createdAt,
                                   id: p1.id,
                                   text: input,
+                                  metadata: p1.metadata,
                                 );
                                 if (chatUuid != null) {
                                   saveChat(chatUuid!, setState);

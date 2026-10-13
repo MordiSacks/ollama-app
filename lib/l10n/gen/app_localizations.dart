@@ -1290,6 +1290,42 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Recognized: {text}'**
   String speechServerTestHeard(String text);
+
+  /// Label of the reasoning block while a model is still thinking
+  ///
+  /// In en, this message translates to:
+  /// **'Thinking…'**
+  String get thinkingActive;
+
+  /// Label of the reasoning block when the duration is unknown
+  ///
+  /// In en, this message translates to:
+  /// **'Thoughts'**
+  String get thinkingDone;
+
+  /// Label of the reasoning block when the model thought for less than a second
+  ///
+  /// In en, this message translates to:
+  /// **'Thought briefly'**
+  String get thinkingDoneBrief;
+
+  /// Label of the reasoning block with the time the model spent thinking
+  ///
+  /// In en, this message translates to:
+  /// **'Thought for {seconds}s'**
+  String thinkingDoneSeconds(int seconds);
+
+  /// Tooltip of the composer button while the model is allowed to reason before answering
+  ///
+  /// In en, this message translates to:
+  /// **'Thinking on: tap to answer directly'**
+  String get thinkingToggleOn;
+
+  /// Tooltip of the composer button while reasoning is switched off
+  ///
+  /// In en, this message translates to:
+  /// **'Thinking off: tap to let the model think first'**
+  String get thinkingToggleOff;
 }
 
 class _AppLocalizationsDelegate extends LocalizationsDelegate<AppLocalizations> {

@@ -19,6 +19,37 @@ const String providerOpenAi = "openai";
 /// Provider of the currently selected [model].
 String modelProvider = providerOllama;
 
+// ---------------------------------------------------------------------------
+// thinking
+
+/// Ollama models that reported the "thinking" capability, remembered per
+/// model so that opening an older chat knows about its model as well.
+Set<String> get thinkingModels =>
+    (prefs?.getStringList("thinkingModels") ?? []).toSet();
+
+void setThinkingModels(Iterable<String> models) =>
+    prefs?.setStringList("thinkingModels", models.toList());
+
+void rememberThinkingSupport(String model, bool supported) {
+  final models = thinkingModels;
+  supported ? models.add(model) : models.remove(model);
+  setThinkingModels(models);
+}
+
+/// Whether the selected model can be told to think or not. Only Ollama
+/// exposes this; OpenAI-compatible servers just get whatever the model does.
+bool modelCanThink([String? name, String? provider]) {
+  name ??= model;
+  provider ??= modelProvider;
+  return provider == providerOllama &&
+      name != null &&
+      thinkingModels.contains(name);
+}
+
+/// User preference for models that [modelCanThink].
+bool get thinkingEnabled => prefs?.getBool("thinking") ?? true;
+set thinkingEnabled(bool value) => prefs?.setBool("thinking", value);
+
 class LlmMessage {
   final String role; // system | user | assistant
   final String content;
@@ -185,6 +216,9 @@ Stream<LlmDelta> chatStream({
     body = {
       "model": model,
       "stream": true,
+      // background requests (titles, punctuation) never need to reason
+      if (modelCanThink(model, provider))
+        "think": cancellable && thinkingEnabled,
       "keep_alive": int.tryParse(prefs?.getString("keepAlive") ?? "300") ?? 300,
       "messages": messages
           .map((m) => {

@@ -50,7 +50,13 @@
     "speechServerTestTts",
     "speechServerTestSample",
     "dictationTranscribing",
-    "speechServerTestHeard"
+    "speechServerTestHeard",
+    "thinkingActive",
+    "thinkingDone",
+    "thinkingDoneBrief",
+    "thinkingDoneSeconds",
+    "thinkingToggleOn",
+    "thinkingToggleOff"
   ],
 
   "fa": [
@@ -104,7 +110,13 @@
     "speechServerTestTts",
     "speechServerTestSample",
     "dictationTranscribing",
-    "speechServerTestHeard"
+    "speechServerTestHeard",
+    "thinkingActive",
+    "thinkingDone",
+    "thinkingDoneBrief",
+    "thinkingDoneSeconds",
+    "thinkingToggleOn",
+    "thinkingToggleOff"
   ],
 
   "it": [
@@ -158,7 +170,13 @@
     "speechServerTestTts",
     "speechServerTestSample",
     "dictationTranscribing",
-    "speechServerTestHeard"
+    "speechServerTestHeard",
+    "thinkingActive",
+    "thinkingDone",
+    "thinkingDoneBrief",
+    "thinkingDoneSeconds",
+    "thinkingToggleOn",
+    "thinkingToggleOff"
   ],
 
   "tr": [
@@ -212,7 +230,13 @@
     "speechServerTestTts",
     "speechServerTestSample",
     "dictationTranscribing",
-    "speechServerTestHeard"
+    "speechServerTestHeard",
+    "thinkingActive",
+    "thinkingDone",
+    "thinkingDoneBrief",
+    "thinkingDoneSeconds",
+    "thinkingToggleOn",
+    "thinkingToggleOff"
   ],
 
   "zh": [
@@ -266,6 +290,12 @@
     "speechServerTestTts",
     "speechServerTestSample",
     "dictationTranscribing",
-    "speechServerTestHeard"
+    "speechServerTestHeard",
+    "thinkingActive",
+    "thinkingDone",
+    "thinkingDoneBrief",
+    "thinkingDoneSeconds",
+    "thinkingToggleOn",
+    "thinkingToggleOff"
   ]
 }

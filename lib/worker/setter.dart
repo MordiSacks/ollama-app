@@ -11,6 +11,7 @@ import 'sender.dart';
 import 'theme.dart';
 import 'clients.dart';
 import 'llm.dart';
+import 'thinking.dart';
 
 import 'package:ollama_app/l10n/gen/app_localizations.dart';
 
@@ -49,9 +50,11 @@ void setModel(BuildContext context, Function setState) {
               var details = await ollamaClient.showModelInfo(
                   request:
                       llama.ModelInfoRequest(model: list.models![i].model!));
+              final capabilities = details.capabilities ?? [];
               vision = vision ||
-                  (details.capabilities ?? [])
-                      .contains(llama.Capability.vision);
+                  capabilities.contains(llama.Capability.vision);
+              rememberThinkingSupport(list.models![i].model!,
+                  capabilities.contains(llama.Capability.thinking));
             } catch (_) {}
             models.add(list.models![i].model!.split(":")[0]);
             modelsReal.add(list.models![i].model!);
@@ -563,6 +566,15 @@ void addModel(BuildContext context, Function setState) async {
         if (element.model == model) {
           exists = true;
           multimodal = (element.details!.families ?? []).contains("clip");
+          try {
+            final details = await ollamaClient.showModelInfo(
+                request: llama.ModelInfoRequest(model: model!));
+            final capabilities = details.capabilities ?? [];
+            multimodal =
+                multimodal || capabilities.contains(llama.Capability.vision);
+            rememberThinkingSupport(
+                model!, capabilities.contains(llama.Capability.thinking));
+          } catch (_) {}
         }
       }
       if (!exists) {
@@ -616,7 +628,15 @@ void saveChat(String uuid, Function setState) async {
     final message = messages[i];
     final role = (message.author == user) ? "user" : "assistant";
     if (message is types.TextMessage) {
-      history.add({"role": role, "content": message.text});
+      final thinking = messageThinking(message);
+      final thinkingMs = messageThinkingMs(message);
+      history.add({
+        "role": role,
+        "content": message.text,
+        if (thinking.isNotEmpty) "thinking": thinking,
+        if (thinking.isNotEmpty && thinkingMs != null)
+          "thinkingMs": thinkingMs.toString()
+      });
     } else if (message is types.FileMessage) {
       history.add({
         "role": role,
@@ -737,7 +757,10 @@ void loadChat(String uuid, Function setState) {
             types.TextMessage(
                 author: (history[i]["role"] == "user") ? user : assistant,
                 id: const Uuid().v4(),
-                text: history[i]["content"]));
+                text: history[i]["content"],
+                metadata: thinkingMetadata(
+                    history[i]["thinking"]?.toString() ?? "",
+                    int.tryParse(history[i]["thinkingMs"]?.toString() ?? ""))));
       }
     }
   }
@@ -745,6 +768,26 @@ void loadChat(String uuid, Function setState) {
   model = chat["model"];
   modelProvider = chat["provider"] ?? providerOllama;
   setState(() {});
+  refreshThinkingSupport(setState);
+}
+
+/// Asks Ollama whether the selected model can think, so the composer shows
+/// the thinking toggle even before the model list was ever opened.
+void refreshThinkingSupport(Function setState) async {
+  final name = model;
+  if (name == null || modelProvider != providerOllama || host == null) return;
+  try {
+    final details = await ollamaClient
+        .showModelInfo(request: llama.ModelInfoRequest(model: name))
+        .timeout(Duration(
+            seconds: (10.0 * (prefs!.getDouble("timeoutMultiplier") ?? 1.0))
+                .round()));
+    final supported =
+        (details.capabilities ?? []).contains(llama.Capability.thinking);
+    if (supported == modelCanThink(name, providerOllama)) return;
+    rememberThinkingSupport(name, supported);
+    setState(() {});
+  } catch (_) {}
 }
 
 Future<bool> deleteChatDialog(BuildContext context, Function setState,

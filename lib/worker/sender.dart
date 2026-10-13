@@ -7,6 +7,7 @@ import 'composer.dart';
 import 'haptic.dart';
 import 'llm.dart';
 import 'setter.dart';
+import 'thinking.dart';
 import '../main.dart';
 
 import 'package:ollama_app/l10n/gen/app_localizations.dart';
@@ -266,25 +267,51 @@ Future<String> send(String value, BuildContext context, Function setState,
   setState(() {});
 
   final bool streamUi = (prefs!.getString("requestType") ?? "stream") == "stream";
+  String raw = ""; // answer as streamed, may contain inline <think> tags
+  String fieldThinking = ""; // reasoning delivered in its own field
   String text = "";
   String thinking = "";
+  final stopwatch = Stopwatch();
+  int? thinkingMs;
   String? error;
+
+  void update() {
+    final split = splitThinking(raw);
+    text = split.answer;
+    thinking = [fieldThinking.trim(), split.thinking]
+        .where((t) => t.isNotEmpty)
+        .join("\n\n");
+    if (thinking.isNotEmpty && !stopwatch.isRunning && thinkingMs == null) {
+      stopwatch.start();
+    }
+    if (text.trim().isNotEmpty && stopwatch.isRunning) {
+      stopwatch.stop();
+      thinkingMs = stopwatch.elapsedMilliseconds;
+    }
+  }
 
   void showAnswer({bool done = false}) {
     messages.removeWhere((m) => m.id == newId);
-    // reasoning models think before answering; show a placeholder meanwhile
-    final shown =
-        (!done && text.isEmpty && thinking.isNotEmpty) ? "_…_" : text;
+    if (done && stopwatch.isRunning) {
+      stopwatch.stop();
+      thinkingMs = stopwatch.elapsedMilliseconds;
+    }
     if (chatUuid == uuid) {
       messages.insert(
-          0, types.TextMessage(author: assistant, id: newId, text: shown));
+          0,
+          types.TextMessage(
+              author: assistant,
+              id: newId,
+              text: text,
+              metadata: thinkingMetadata(thinking, thinkingMs)));
     }
   }
 
   try {
     await for (final delta in chatStream(model: model!, messages: history)) {
-      text += delta.content;
-      thinking += delta.thinking;
+      raw += delta.content;
+      fieldThinking += delta.thinking;
+      update();
       if (streamUi) {
         showAnswer();
         if (onStream != null) onStream(text, false);

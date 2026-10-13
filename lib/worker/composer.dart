@@ -4,7 +4,8 @@
 //  * keep (and restore) the text of a message whose request failed,
 //  * attach any file, not only images,
 //  * dictate with the device's speech recognition,
-//  * stop a running generation.
+//  * stop a running generation,
+//  * switch reasoning on or off for models that support it.
 
 import 'dart:convert';
 import 'dart:io';
@@ -175,12 +176,16 @@ class ChatComposer extends StatefulWidget {
   /// Whether the selected model is known to understand images.
   final bool imagesSupported;
 
+  /// Whether the selected model can be told to think or not.
+  final bool thinkingSupported;
+
   const ChatComposer(
       {super.key,
       required this.onSend,
       required this.generating,
       this.onVoiceMode,
-      this.imagesSupported = true});
+      this.imagesSupported = true,
+      this.thinkingSupported = false});
 
   @override
   State<ChatComposer> createState() => _ChatComposerState();
@@ -521,6 +526,22 @@ class _ChatComposerState extends State<ChatComposer> {
                       tooltip: l10n.tooltipAttachment,
                       onPressed: widget.generating ? null : _openAttachMenu,
                       icon: const Icon(Icons.add_rounded)),
+                  if (widget.thinkingSupported)
+                    IconButton(
+                        tooltip: thinkingEnabled
+                            ? l10n.thinkingToggleOn
+                            : l10n.thinkingToggleOff,
+                        onPressed: widget.generating
+                            ? null
+                            : () {
+                                selectionHaptic();
+                                setState(
+                                    () => thinkingEnabled = !thinkingEnabled);
+                              },
+                        color: thinkingEnabled ? scheme.primary : null,
+                        isSelected: thinkingEnabled,
+                        selectedIcon: const Icon(Icons.lightbulb_rounded),
+                        icon: const Icon(Icons.lightbulb_outline_rounded)),
                   Expanded(
                     child: Focus(
                       onKeyEvent: (node, event) {
