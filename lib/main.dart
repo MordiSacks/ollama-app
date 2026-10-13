@@ -1,4 +1,3 @@
-import 'dart:convert';
 import 'dart:io';
 import 'dart:math';
 
@@ -21,6 +20,7 @@ import 'worker/clients.dart';
 import 'worker/chat_store.dart';
 import 'worker/composer.dart';
 import 'worker/llm.dart';
+import 'worker/message_actions.dart';
 import 'worker/read_aloud.dart';
 import 'worker/thinking.dart';
 
@@ -422,7 +422,7 @@ class _MainAppState extends State<MainApp> {
         String tip = (tipId == 0)
             ? AppLocalizations.of(context)!.tip0
             : (tipId == 1)
-                ? AppLocalizations.of(context)!.tip1
+                ? AppLocalizations.of(context)!.tipMessageActions
                 : (tipId == 2)
                     ? AppLocalizations.of(context)!.tip2
                     : (tipId == 3)
@@ -1302,87 +1302,15 @@ class _MainAppState extends State<MainApp> {
                                     send(text, context, setState,
                                         attachments: attachments);
                                   }),
-                              onMessageDoubleTap: (context, p1) {
-                                selectionHaptic();
-                                if (!chatAllowed) return;
-                                if (p1.author == assistant) return;
-                                for (var i = 0; i < messages.length; i++) {
-                                  if (messages[i].id == p1.id) {
-                                    List messageList =
-                                        (jsonDecode(jsonEncode(messages))
-                                                as List)
-                                            .reversed
-                                            .toList();
-                                    bool found = false;
-                                    List index = [];
-                                    for (var j = 0;
-                                        j < messageList.length;
-                                        j++) {
-                                      if (messageList[j]["id"] == p1.id) {
-                                        found = true;
-                                      }
-                                      if (found) {
-                                        index.add(messageList[j]["id"]);
-                                      }
-                                    }
-                                    for (var j = 0; j < index.length; j++) {
-                                      for (var k = 0;
-                                          k < messages.length;
-                                          k++) {
-                                        if (messages[k].id == index[j]) {
-                                          messages.removeAt(k);
-                                        }
-                                      }
-                                    }
-                                    break;
-                                  }
+                              onMessageTap: (context, p1) {
+                                if (p1 is types.ImageMessage) {
+                                  selectionHaptic();
+                                  openImageViewer(context, p1);
                                 }
-                                saveChat(chatUuid!, setState);
-                                setState(() {});
                               },
-                              onMessageLongPress: (context, p1) async {
+                              onMessageLongPress: (context, p1) {
                                 selectionHaptic();
-
-                                if (!(prefs!.getBool("enableEditing") ??
-                                    true)) {
-                                  return;
-                                }
-
-                                var index = -1;
-                                if (!chatAllowed) return;
-                                if (p1 is! types.TextMessage) return;
-                                for (var i = 0; i < messages.length; i++) {
-                                  if (messages[i].id == p1.id) {
-                                    index = i;
-                                    break;
-                                  }
-                                }
-
-                                var text =
-                                    (messages[index] as types.TextMessage).text;
-                                var input = await prompt(
-                                  context,
-                                  title: AppLocalizations.of(context)!
-                                      .dialogEditMessageTitle,
-                                  value: text,
-                                  keyboard: TextInputType.multiline,
-                                  maxLines: (text.length >= 100)
-                                      ? 10
-                                      : ((text.length >= 50) ? 5 : 3),
-                                );
-                                if (input == "") return;
-
-                                messages[index] = types.TextMessage(
-                                  author: p1.author,
-                                  createdAt: p1.createdAt,
-                                  id: p1.id,
-                                  text: input,
-                                  metadata: p1.metadata,
-                                );
-                                if (chatUuid != null) {
-                                  saveChat(chatUuid!, setState);
-                                }
-                                setState(() {});
+                                showMessageActions(context, p1, setState);
                               },
                               l10n: ChatL10nEn(
                                   inputPlaceholder: AppLocalizations.of(context)!

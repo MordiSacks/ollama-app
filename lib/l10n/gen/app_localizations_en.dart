@@ -431,6 +431,32 @@ class AppLocalizationsEn extends AppLocalizations {
   String get settingsExportWarning => 'Multiple chat histories won\'t be merged! You\'ll loose your current chat history if you import a new one';
 
   @override
+  String get messageActionEdit => 'Edit';
+
+  @override
+  String get messageActionDelete => 'Delete this message';
+
+  @override
+  String get messageActionDeleteBelow => 'Delete this and everything below';
+
+  @override
+  String messagesDeleted(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count messages deleted',
+      one: 'Message deleted',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get undo => 'Undo';
+
+  @override
+  String get tipMessageActions => 'Long press a message to copy, edit or delete it';
+
+  @override
   String get settingsImportChatsChoice => 'Add the chats from the file to your chats, or replace all your chats with them? Chats that exist in both are overwritten with the version from the file.';
 
   @override

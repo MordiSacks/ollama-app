@@ -1,5 +1,11 @@
 {
   "de": [
+    "messageActionEdit",
+    "messageActionDelete",
+    "messageActionDeleteBelow",
+    "messagesDeleted",
+    "undo",
+    "tipMessageActions",
     "settingsImportChatsChoice",
     "settingsImportChatsMerge",
     "settingsImportChatsReplace",
@@ -66,6 +72,12 @@
   ],
 
   "fa": [
+    "messageActionEdit",
+    "messageActionDelete",
+    "messageActionDeleteBelow",
+    "messagesDeleted",
+    "undo",
+    "tipMessageActions",
     "settingsImportChatsChoice",
     "settingsImportChatsMerge",
     "settingsImportChatsReplace",
@@ -132,6 +144,12 @@
   ],
 
   "it": [
+    "messageActionEdit",
+    "messageActionDelete",
+    "messageActionDeleteBelow",
+    "messagesDeleted",
+    "undo",
+    "tipMessageActions",
     "settingsImportChatsChoice",
     "settingsImportChatsMerge",
     "settingsImportChatsReplace",
@@ -198,6 +216,12 @@
   ],
 
   "tr": [
+    "messageActionEdit",
+    "messageActionDelete",
+    "messageActionDeleteBelow",
+    "messagesDeleted",
+    "undo",
+    "tipMessageActions",
     "settingsImportChatsChoice",
     "settingsImportChatsMerge",
     "settingsImportChatsReplace",
@@ -264,6 +288,12 @@
   ],
 
   "zh": [
+    "messageActionEdit",
+    "messageActionDelete",
+    "messageActionDeleteBelow",
+    "messagesDeleted",
+    "undo",
+    "tipMessageActions",
     "settingsImportChatsChoice",
     "settingsImportChatsMerge",
     "settingsImportChatsReplace",

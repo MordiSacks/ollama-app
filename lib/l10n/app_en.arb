@@ -691,6 +691,35 @@
         "description": "Warning displayed for export and import options",
         "context": "Visible in the settings view"
     },
+    "messageActionEdit": "Edit",
+    "@messageActionEdit": {
+        "description": "Message menu entry that edits the message"
+    },
+    "messageActionDelete": "Delete this message",
+    "@messageActionDelete": {
+        "description": "Message menu entry that deletes only this message"
+    },
+    "messageActionDeleteBelow": "Delete this and everything below",
+    "@messageActionDeleteBelow": {
+        "description": "Message menu entry that deletes this message and all newer ones"
+    },
+    "messagesDeleted": "{count, plural, =1{Message deleted} other{{count} messages deleted}}",
+    "@messagesDeleted": {
+        "description": "Shown after messages were deleted, with an undo button",
+        "placeholders": {
+            "count": {
+                "type": "int"
+            }
+        }
+    },
+    "undo": "Undo",
+    "@undo": {
+        "description": "Button that reverts the last action"
+    },
+    "tipMessageActions": "Long press a message to copy, edit or delete it",
+    "@tipMessageActions": {
+        "description": "Tip shown in the empty chat list"
+    },
     "settingsImportChatsChoice": "Add the chats from the file to your chats, or replace all your chats with them? Chats that exist in both are overwritten with the version from the file.",
     "@settingsImportChatsChoice": {
         "description": "Question shown before importing chats",

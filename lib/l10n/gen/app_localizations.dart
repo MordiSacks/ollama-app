@@ -889,6 +889,42 @@ abstract class AppLocalizations {
   /// **'Multiple chat histories won\'t be merged! You\'ll loose your current chat history if you import a new one'**
   String get settingsExportWarning;
 
+  /// Message menu entry that edits the message
+  ///
+  /// In en, this message translates to:
+  /// **'Edit'**
+  String get messageActionEdit;
+
+  /// Message menu entry that deletes only this message
+  ///
+  /// In en, this message translates to:
+  /// **'Delete this message'**
+  String get messageActionDelete;
+
+  /// Message menu entry that deletes this message and all newer ones
+  ///
+  /// In en, this message translates to:
+  /// **'Delete this and everything below'**
+  String get messageActionDeleteBelow;
+
+  /// Shown after messages were deleted, with an undo button
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, =1{Message deleted} other{{count} messages deleted}}'**
+  String messagesDeleted(int count);
+
+  /// Button that reverts the last action
+  ///
+  /// In en, this message translates to:
+  /// **'Undo'**
+  String get undo;
+
+  /// Tip shown in the empty chat list
+  ///
+  /// In en, this message translates to:
+  /// **'Long press a message to copy, edit or delete it'**
+  String get tipMessageActions;
+
   /// Question shown before importing chats
   ///
   /// In en, this message translates to:
