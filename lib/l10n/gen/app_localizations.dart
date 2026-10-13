@@ -1021,6 +1021,18 @@ abstract class AppLocalizations {
   /// **'The server didn\'t report token counts.'**
   String get statsNoTokens;
 
+  /// Shown when no other app can open an attachment
+  ///
+  /// In en, this message translates to:
+  /// **'No app on this device can open this file'**
+  String get attachmentNoApp;
+
+  /// Tooltip of the button that hands an image to another app
+  ///
+  /// In en, this message translates to:
+  /// **'Open in another app'**
+  String get attachmentOpenWith;
+
   /// Question shown before importing chats
   ///
   /// In en, this message translates to:

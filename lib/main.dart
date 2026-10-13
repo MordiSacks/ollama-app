@@ -1323,6 +1323,9 @@ class _MainAppState extends State<MainApp> {
                                 if (p1 is types.ImageMessage) {
                                   selectionHaptic();
                                   openImageViewer(context, p1);
+                                } else if (p1 is types.FileMessage) {
+                                  selectionHaptic();
+                                  openFileMessage(context, p1);
                                 }
                               },
                               onMessageLongPress: (context, p1) {

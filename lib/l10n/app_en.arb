@@ -794,6 +794,14 @@
     "@statsNoTokens": {
         "description": "Note when no token usage is available"
     },
+    "attachmentNoApp": "No app on this device can open this file",
+    "@attachmentNoApp": {
+        "description": "Shown when no other app can open an attachment"
+    },
+    "attachmentOpenWith": "Open in another app",
+    "@attachmentOpenWith": {
+        "description": "Tooltip of the button that hands an image to another app"
+    },
     "settingsImportChatsChoice": "Add the chats from the file to your chats, or replace all your chats with them? Chats that exist in both are overwritten with the version from the file.",
     "@settingsImportChatsChoice": {
         "description": "Question shown before importing chats",

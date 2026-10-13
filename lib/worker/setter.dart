@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
 
 import 'chat_store.dart';
+import 'composer.dart';
 import 'desktop.dart';
 import 'haptic.dart';
 import '../main.dart';
@@ -632,7 +633,10 @@ Future<StoredMessage?> storedMessage(types.Message message) async {
         name: message.name,
         size: message.size.toInt(),
         content: message.metadata?["text"]?.toString() ?? "",
-        createdAt: message.createdAt);
+        createdAt: message.createdAt,
+        dataPath: (!kIsWeb && message.uri != message.name)
+            ? message.uri
+            : null);
   } else if (message is types.ImageMessage) {
     final uri = message.uri;
     try {
@@ -664,8 +668,8 @@ types.Message chatMessage(StoredMessage message) {
           createdAt: message.createdAt,
           name: message.name ?? "file",
           size: message.size ?? 0,
-          mimeType: "text/plain",
-          uri: message.name ?? "file",
+          mimeType: attachmentMimeType(message.name ?? ""),
+          uri: message.dataPath ?? message.name ?? "file",
           metadata: {"text": message.content});
     case messageImage:
       return types.ImageMessage(

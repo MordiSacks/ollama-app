@@ -162,6 +162,36 @@ void tests(DatabaseFactory factory, bool sqlite) {
     expect(chatList, hasLength(2));
   });
 
+  test("keeps the original of an attached file", () async {
+    await open({});
+    final original = File("${dir.path}/picked.pdf")
+      ..writeAsBytesSync([37, 80, 68, 70]);
+    createChat("f", "File");
+    final file = StoredMessage(
+        role: "user",
+        type: messageFile,
+        name: "report.pdf",
+        size: 4,
+        content: "extracted text",
+        dataPath: original.path);
+    await storeChat("f", [file]);
+    original.deleteSync(); // the picker's copy may vanish
+
+    final loaded = (await chatMessages("f")).single;
+    expect(loaded.content, "extracted text");
+    if (sqlite) {
+      expect(loaded.dataPath, endsWith(".pdf"));
+      expect(File(loaded.dataPath!).readAsBytesSync(), [37, 80, 68, 70]);
+      // saving again keeps it; deleting the message removes it
+      await storeChat("f", [loaded]);
+      expect(File(loaded.dataPath!).existsSync(), isTrue);
+      await storeChat("f", [StoredMessage(role: "user", content: "x")]);
+      expect(File(loaded.dataPath!).existsSync(), isFalse);
+    } else {
+      expect(loaded.dataPath, isNull);
+    }
+  });
+
   test("removing a chat deletes its messages and images", () async {
     await open({
       "chats": [legacyChat("a", "A", image: true)]

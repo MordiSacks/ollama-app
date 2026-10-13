@@ -508,6 +508,12 @@ class AppLocalizationsZh extends AppLocalizations {
   String get statsNoTokens => 'The server didn\'t report token counts.';
 
   @override
+  String get attachmentNoApp => 'No app on this device can open this file';
+
+  @override
+  String get attachmentOpenWith => 'Open in another app';
+
+  @override
   String get settingsImportChatsChoice => 'Add the chats from the file to your chats, or replace all your chats with them? Chats that exist in both are overwritten with the version from the file.';
 
   @override

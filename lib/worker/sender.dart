@@ -204,6 +204,11 @@ Future<String> send(String value, BuildContext context, Function setState,
     return "";
   }
 
+  if (value.trim().isEmpty && attachments.isEmpty) {
+    if (onStream != null) onStream("", true);
+    return "";
+  }
+
   // the composer's text and attachments now belong to this request
   if (fromComposer) {
     inputController.clear();
@@ -219,13 +224,15 @@ Future<String> send(String value, BuildContext context, Function setState,
   }
   final String uuid = chatUuid!;
 
+  // attachments can be sent without any text
   final List<types.Message> sentMessages = [
     ...attachments.map((a) => a.toMessage()),
-    types.TextMessage(
-        author: user,
-        id: const Uuid().v4(),
-        createdAt: DateTime.now().millisecondsSinceEpoch,
-        text: value.trim())
+    if (value.trim().isNotEmpty)
+      types.TextMessage(
+          author: user,
+          id: const Uuid().v4(),
+          createdAt: DateTime.now().millisecondsSinceEpoch,
+          text: value.trim())
   ];
   for (final message in sentMessages) {
     messages.insert(0, message);
@@ -356,7 +363,9 @@ Future<String> send(String value, BuildContext context, Function setState,
                     if (!chatAllowed) return;
                     final retryAttachments = [...pendingAttachments];
                     final retryText = inputController.text.trim();
-                    if (retryText.isEmpty) return;
+                    if (retryText.isEmpty && retryAttachments.isEmpty) {
+                      return;
+                    }
                     send(retryText, mainContext ?? context, setState,
                         attachments: retryAttachments);
                   })

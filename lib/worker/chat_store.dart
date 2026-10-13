@@ -89,6 +89,10 @@ class StoredMessage {
   /// Everything else about the message: reasoning, usage statistics, ...
   final Map<String, dynamic>? meta;
 
+  /// Original of an attached file (a PDF, a text file) on disk, so it can
+  /// be opened later. Only the SQLite store keeps originals.
+  final String? dataPath;
+
   StoredMessage(
       {String? id,
       required this.role,
@@ -97,7 +101,8 @@ class StoredMessage {
       this.size,
       required this.content,
       this.createdAt,
-      this.meta})
+      this.meta,
+      this.dataPath})
       : id = id ?? const Uuid().v4();
 }
 
@@ -172,8 +177,21 @@ class _SqliteBackend implements _Backend {
   Directory _imageDir(String uuid) =>
       Directory("${images.path}${Platform.pathSeparator}$uuid");
 
-  File _imageFile(String uuid, String id) => File(
-      "${_imageDir(uuid).path}${Platform.pathSeparator}${id.replaceAll(RegExp(r"[^A-Za-z0-9_-]"), "_")}");
+  static String _safe(String text) =>
+      text.replaceAll(RegExp(r"[^A-Za-z0-9_-]"), "_");
+
+  File _imageFile(String uuid, String id) =>
+      File("${_imageDir(uuid).path}${Platform.pathSeparator}${_safe(id)}");
+
+  /// Original of an attached file; keeps the extension so other apps know
+  /// what it is.
+  File _dataFile(String uuid, String id, String? name) {
+    final ext = (name != null && name.contains("."))
+        ? ".${_safe(name.split(".").last)}"
+        : "";
+    return File(
+        "${_imageDir(uuid).path}${Platform.pathSeparator}${_safe(id)}.file$ext");
+  }
 
   @override
   Future<List<ChatInfo>> chats() async =>
@@ -197,7 +215,11 @@ class _SqliteBackend implements _Backend {
           continue; // the image is gone; skip it rather than fail the chat
         }
       }
+      final data = type == messageFile
+          ? _dataFile(uuid, row["id"].toString(), row["name"]?.toString())
+          : null;
       result.add(StoredMessage(
+          dataPath: (data != null && await data.exists()) ? data.path : null,
           id: row["id"].toString(),
           role: row["role"].toString(),
           type: type,
@@ -219,9 +241,21 @@ class _SqliteBackend implements _Backend {
 
   @override
   Future<void> putMessages(String uuid, List<StoredMessage> messages) async {
-    // images are written once; their file name is the message id
+    // images and file originals are written once, named after the message id
     final Set<String> keep = {};
     for (final message in messages) {
+      if (message.type == messageFile && message.dataPath != null) {
+        final file = _dataFile(uuid, message.id, message.name);
+        keep.add(file.path);
+        if (file.path == message.dataPath || await file.exists()) continue;
+        try {
+          await file.parent.create(recursive: true);
+          await File(message.dataPath!).copy(file.path);
+        } catch (_) {
+          keep.remove(file.path); // the original is gone; keep the text
+        }
+        continue;
+      }
       if (message.type != messageImage) continue;
       final file = _imageFile(uuid, message.id);
       keep.add(file.path);

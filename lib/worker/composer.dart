@@ -16,6 +16,7 @@ import 'package:flutter/services.dart';
 
 import 'package:file_picker/file_picker.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:path_provider/path_provider.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:speech_to_text/speech_to_text.dart' as stt;
 import 'package:syncfusion_flutter_pdf/pdf.dart';
@@ -54,12 +55,16 @@ class PendingAttachment {
   final String? text; // set for text/pdf files
   final bool truncated;
 
+  /// Copy of the original file, so it can be opened from the chat later.
+  final String? path;
+
   const PendingAttachment(
       {required this.name,
       required this.size,
       this.imageBase64,
       this.text,
-      this.truncated = false});
+      this.truncated = false,
+      this.path});
 
   bool get isImage => imageBase64 != null;
 
@@ -79,8 +84,8 @@ class PendingAttachment {
         createdAt: DateTime.now().millisecondsSinceEpoch,
         name: name,
         size: size,
-        mimeType: "text/plain",
-        uri: name,
+        mimeType: attachmentMimeType(name),
+        uri: path ?? name,
         metadata: {"text": text ?? ""});
   }
 
@@ -104,7 +109,8 @@ class PendingAttachment {
       return PendingAttachment(
           name: message.name,
           size: message.size.toInt(),
-          text: message.metadata?["text"]?.toString() ?? "");
+          text: message.metadata?["text"]?.toString() ?? "",
+          path: (!kIsWeb && File(message.uri).existsSync()) ? message.uri : null);
     }
     return null;
   }
@@ -114,6 +120,26 @@ class PendingAttachment {
 // reading files
 
 const _imageExtensions = {"png", "jpg", "jpeg", "gif", "webp", "bmp"};
+
+String attachmentMimeType(String name) =>
+    name.toLowerCase().endsWith(".pdf") ? "application/pdf" : "text/plain";
+
+/// Keeps a copy of a picked file until the chat is saved (the store then
+/// copies it next to the chat). Returns null on the web.
+Future<String?> _keepOriginal(String name, Uint8List bytes) async {
+  if (kIsWeb) return null;
+  try {
+    final dir = Directory(
+        "${(await getTemporaryDirectory()).path}/attachments/${const Uuid().v4()}");
+    await dir.create(recursive: true);
+    final safeName = name.replaceAll(RegExp(r'[/\\]'), "_");
+    final file = File("${dir.path}/$safeName");
+    await file.writeAsBytes(bytes, flush: true);
+    return file.path;
+  } catch (_) {
+    return null;
+  }
+}
 
 String _extractPdfText(Uint8List bytes) {
   final document = PdfDocument(inputBytes: bytes);
@@ -157,7 +183,11 @@ Future<PendingAttachment?> attachmentFromBytes(
     truncated = true;
   }
   return PendingAttachment(
-      name: name, size: bytes.length, text: text, truncated: truncated);
+      name: name,
+      size: bytes.length,
+      text: text,
+      truncated: truncated,
+      path: await _keepOriginal(name, bytes));
 }
 
 // ---------------------------------------------------------------------------
@@ -226,7 +256,8 @@ class _ChatComposerState extends State<ChatComposer> {
   }
 
   bool get canSend =>
-      inputController.text.trim().isNotEmpty &&
+      (inputController.text.trim().isNotEmpty ||
+          pendingAttachments.isNotEmpty) &&
       !widget.generating &&
       !transcribing &&
       !(listening && remoteDictation);
