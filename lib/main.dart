@@ -21,6 +21,7 @@ import 'worker/chat_store.dart';
 import 'worker/composer.dart';
 import 'worker/llm.dart';
 import 'worker/message_actions.dart';
+import 'worker/message_stats.dart';
 import 'worker/read_aloud.dart';
 import 'worker/thinking.dart';
 
@@ -1241,6 +1242,22 @@ class _MainAppState extends State<MainApp> {
                                                   },
                                                   icon: const Icon(
                                                       Icons.copy_rounded)),
+                                              if (messageUsage(p0) != null)
+                                                IconButton(
+                                                    visualDensity:
+                                                        VisualDensity.compact,
+                                                    iconSize: 20,
+                                                    color: actionColor,
+                                                    tooltip: AppLocalizations.of(
+                                                            context)!
+                                                        .statsTitle,
+                                                    onPressed: () {
+                                                      selectionHaptic();
+                                                      showMessageStats(
+                                                          context, p0);
+                                                    },
+                                                    icon: const Icon(Icons
+                                                        .info_outline_rounded)),
                                             ]),
                                       ),
                                   ]));

@@ -247,6 +247,12 @@ Future<String> send(String value, BuildContext context, Function setState,
   final stopwatch = Stopwatch();
   int? thinkingMs;
   String? error;
+  // statistics shown by the message's info button
+  final String usedModel = model!;
+  final String usedProvider = modelProvider;
+  final clock = Stopwatch()..start();
+  int? firstTokenMs;
+  Map<String, dynamic> serverUsage = {};
 
   void update() {
     final split = splitThinking(raw);
@@ -263,7 +269,16 @@ Future<String> send(String value, BuildContext context, Function setState,
     }
   }
 
-  void showAnswer({bool done = false}) {
+  Map<String, dynamic> usage({required bool stopped}) => {
+        "model": usedModel,
+        "provider": usedProvider,
+        ...serverUsage,
+        if (firstTokenMs != null) "firstTokenMs": firstTokenMs,
+        "totalMs": clock.elapsedMilliseconds,
+        if (stopped) "stopped": true,
+      };
+
+  void showAnswer({bool done = false, bool stopped = false}) {
     messages.removeWhere((m) => m.id == newId);
     if (done && stopwatch.isRunning) {
       stopwatch.stop();
@@ -275,13 +290,22 @@ Future<String> send(String value, BuildContext context, Function setState,
           types.TextMessage(
               author: assistant,
               id: newId,
+              createdAt: DateTime.now().millisecondsSinceEpoch,
               text: text,
-              metadata: thinkingMetadata(thinking, thinkingMs)));
+              metadata: {
+                ...?thinkingMetadata(thinking, thinkingMs),
+                if (done) "usage": usage(stopped: stopped)
+              }));
     }
   }
 
   try {
     await for (final delta in chatStream(model: model!, messages: history)) {
+      if (delta.usage != null) serverUsage = delta.usage!;
+      if (firstTokenMs == null &&
+          (delta.content.isNotEmpty || delta.thinking.isNotEmpty)) {
+        firstTokenMs = clock.elapsedMilliseconds;
+      }
       raw += delta.content;
       fieldThinking += delta.thinking;
       update();
@@ -296,6 +320,7 @@ Future<String> send(String value, BuildContext context, Function setState,
     error = e.toString();
   }
   final bool cancelled = generationCancelled;
+  clock.stop();
   streamingMessageId = null;
   chatAllowed = true;
 
@@ -342,7 +367,7 @@ Future<String> send(String value, BuildContext context, Function setState,
   }
 
   // got an answer (possibly partial)
-  showAnswer(done: true);
+  showAnswer(done: true, stopped: cancelled || error != null);
   if (onStream != null) onStream(text, true);
   saveChat(uuid, setState);
   setState(() {});

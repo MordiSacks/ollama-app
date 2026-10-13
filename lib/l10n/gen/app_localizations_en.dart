@@ -457,6 +457,58 @@ class AppLocalizationsEn extends AppLocalizations {
   String get tipMessageActions => 'Long press a message to copy, edit or delete it';
 
   @override
+  String get statsTitle => 'Response details';
+
+  @override
+  String get statsModel => 'Model';
+
+  @override
+  String get statsSpeed => 'Speed';
+
+  @override
+  String get statsOutputTokens => 'Output tokens';
+
+  @override
+  String statsReasoningTokens(int count) {
+    return '$count reasoning';
+  }
+
+  @override
+  String get statsPromptTokens => 'Prompt tokens';
+
+  @override
+  String statsCachedTokens(int count) {
+    return '$count cached';
+  }
+
+  @override
+  String get statsPromptSpeed => 'Prompt speed';
+
+  @override
+  String get statsFirstToken => 'Time to first token';
+
+  @override
+  String get statsGenerationTime => 'Generation time';
+
+  @override
+  String get statsLoadTime => 'Model load time';
+
+  @override
+  String get statsTotalTime => 'Total time';
+
+  @override
+  String get statsStopped => 'The answer was stopped before it was finished.';
+
+  @override
+  String get statsTruncated => 'The answer hit the output token limit.';
+
+  @override
+  String get statsEstimated => 'Speed measured by the app; it includes network time.';
+
+  @override
+  String get statsNoTokens => 'The server didn\'t report token counts.';
+
+  @override
   String get settingsImportChatsChoice => 'Add the chats from the file to your chats, or replace all your chats with them? Chats that exist in both are overwritten with the version from the file.';
 
   @override

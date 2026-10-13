@@ -720,6 +720,80 @@
     "@tipMessageActions": {
         "description": "Tip shown in the empty chat list"
     },
+    "statsTitle": "Response details",
+    "@statsTitle": {
+        "description": "Title of the answer statistics sheet and tooltip of its button"
+    },
+    "statsModel": "Model",
+    "@statsModel": {
+        "description": "Statistics row: model that wrote the answer"
+    },
+    "statsSpeed": "Speed",
+    "@statsSpeed": {
+        "description": "Statistics row: output tokens per second"
+    },
+    "statsOutputTokens": "Output tokens",
+    "@statsOutputTokens": {
+        "description": "Statistics row: tokens in the answer"
+    },
+    "statsReasoningTokens": "{count} reasoning",
+    "@statsReasoningTokens": {
+        "description": "Part of the output tokens spent on reasoning",
+        "placeholders": {
+            "count": {
+                "type": "int"
+            }
+        }
+    },
+    "statsPromptTokens": "Prompt tokens",
+    "@statsPromptTokens": {
+        "description": "Statistics row: tokens in the request"
+    },
+    "statsCachedTokens": "{count} cached",
+    "@statsCachedTokens": {
+        "description": "Part of the prompt tokens the server took from its cache",
+        "placeholders": {
+            "count": {
+                "type": "int"
+            }
+        }
+    },
+    "statsPromptSpeed": "Prompt speed",
+    "@statsPromptSpeed": {
+        "description": "Statistics row: prompt tokens processed per second"
+    },
+    "statsFirstToken": "Time to first token",
+    "@statsFirstToken": {
+        "description": "Statistics row: wait until the answer started"
+    },
+    "statsGenerationTime": "Generation time",
+    "@statsGenerationTime": {
+        "description": "Statistics row: time spent writing the answer, as measured by the server"
+    },
+    "statsLoadTime": "Model load time",
+    "@statsLoadTime": {
+        "description": "Statistics row: time the server spent loading the model"
+    },
+    "statsTotalTime": "Total time",
+    "@statsTotalTime": {
+        "description": "Statistics row: from sending to the end of the answer"
+    },
+    "statsStopped": "The answer was stopped before it was finished.",
+    "@statsStopped": {
+        "description": "Note on the statistics of an interrupted answer"
+    },
+    "statsTruncated": "The answer hit the output token limit.",
+    "@statsTruncated": {
+        "description": "Note when the server cut the answer at its length limit"
+    },
+    "statsEstimated": "Speed measured by the app; it includes network time.",
+    "@statsEstimated": {
+        "description": "Note when the server reported no timings"
+    },
+    "statsNoTokens": "The server didn't report token counts.",
+    "@statsNoTokens": {
+        "description": "Note when no token usage is available"
+    },
     "settingsImportChatsChoice": "Add the chats from the file to your chats, or replace all your chats with them? Chats that exist in both are overwritten with the version from the file.",
     "@settingsImportChatsChoice": {
         "description": "Question shown before importing chats",

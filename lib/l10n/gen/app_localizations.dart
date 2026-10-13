@@ -925,6 +925,102 @@ abstract class AppLocalizations {
   /// **'Long press a message to copy, edit or delete it'**
   String get tipMessageActions;
 
+  /// Title of the answer statistics sheet and tooltip of its button
+  ///
+  /// In en, this message translates to:
+  /// **'Response details'**
+  String get statsTitle;
+
+  /// Statistics row: model that wrote the answer
+  ///
+  /// In en, this message translates to:
+  /// **'Model'**
+  String get statsModel;
+
+  /// Statistics row: output tokens per second
+  ///
+  /// In en, this message translates to:
+  /// **'Speed'**
+  String get statsSpeed;
+
+  /// Statistics row: tokens in the answer
+  ///
+  /// In en, this message translates to:
+  /// **'Output tokens'**
+  String get statsOutputTokens;
+
+  /// Part of the output tokens spent on reasoning
+  ///
+  /// In en, this message translates to:
+  /// **'{count} reasoning'**
+  String statsReasoningTokens(int count);
+
+  /// Statistics row: tokens in the request
+  ///
+  /// In en, this message translates to:
+  /// **'Prompt tokens'**
+  String get statsPromptTokens;
+
+  /// Part of the prompt tokens the server took from its cache
+  ///
+  /// In en, this message translates to:
+  /// **'{count} cached'**
+  String statsCachedTokens(int count);
+
+  /// Statistics row: prompt tokens processed per second
+  ///
+  /// In en, this message translates to:
+  /// **'Prompt speed'**
+  String get statsPromptSpeed;
+
+  /// Statistics row: wait until the answer started
+  ///
+  /// In en, this message translates to:
+  /// **'Time to first token'**
+  String get statsFirstToken;
+
+  /// Statistics row: time spent writing the answer, as measured by the server
+  ///
+  /// In en, this message translates to:
+  /// **'Generation time'**
+  String get statsGenerationTime;
+
+  /// Statistics row: time the server spent loading the model
+  ///
+  /// In en, this message translates to:
+  /// **'Model load time'**
+  String get statsLoadTime;
+
+  /// Statistics row: from sending to the end of the answer
+  ///
+  /// In en, this message translates to:
+  /// **'Total time'**
+  String get statsTotalTime;
+
+  /// Note on the statistics of an interrupted answer
+  ///
+  /// In en, this message translates to:
+  /// **'The answer was stopped before it was finished.'**
+  String get statsStopped;
+
+  /// Note when the server cut the answer at its length limit
+  ///
+  /// In en, this message translates to:
+  /// **'The answer hit the output token limit.'**
+  String get statsTruncated;
+
+  /// Note when the server reported no timings
+  ///
+  /// In en, this message translates to:
+  /// **'Speed measured by the app; it includes network time.'**
+  String get statsEstimated;
+
+  /// Note when no token usage is available
+  ///
+  /// In en, this message translates to:
+  /// **'The server didn\'t report token counts.'**
+  String get statsNoTokens;
+
   /// Question shown before importing chats
   ///
   /// In en, this message translates to:

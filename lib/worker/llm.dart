@@ -61,7 +61,69 @@ class LlmMessage {
 class LlmDelta {
   final String content;
   final String thinking;
-  const LlmDelta({this.content = "", this.thinking = ""});
+
+  /// Token counts and timings the server reported, usually with the last
+  /// chunk. Keys: promptTokens, cachedTokens, tokens, reasoningTokens,
+  /// promptMs, genMs,
+  /// loadMs, serverMs, doneReason (all optional).
+  final Map<String, dynamic>? usage;
+  const LlmDelta({this.content = "", this.thinking = "", this.usage});
+}
+
+int? _ms(Object? nanoseconds) =>
+    nanoseconds is num ? (nanoseconds / 1000000).round() : null;
+
+Map<String, dynamic>? ollamaUsage(Map json) {
+  final usage = <String, dynamic>{
+    if (json["prompt_eval_count"] is num)
+      "promptTokens": (json["prompt_eval_count"] as num).toInt(),
+    if (json["prompt_eval_cached_count"] is num &&
+        json["prompt_eval_cached_count"] > 0)
+      "cachedTokens": (json["prompt_eval_cached_count"] as num).toInt(),
+    if (json["eval_count"] is num)
+      "tokens": (json["eval_count"] as num).toInt(),
+    if (_ms(json["prompt_eval_duration"]) != null)
+      "promptMs": _ms(json["prompt_eval_duration"]),
+    if (_ms(json["eval_duration"]) != null) "genMs": _ms(json["eval_duration"]),
+    if (_ms(json["load_duration"]) != null)
+      "loadMs": _ms(json["load_duration"]),
+    if (_ms(json["total_duration"]) != null)
+      "serverMs": _ms(json["total_duration"]),
+    if (json["done_reason"] != null)
+      "doneReason": json["done_reason"].toString(),
+  };
+  return usage.isEmpty ? null : usage;
+}
+
+/// OpenAI "usage", plus llama.cpp's "timings" where a server sends them.
+Map<String, dynamic>? openAiUsage(Map json) {
+  final usage = json["usage"] is Map ? json["usage"] as Map : const {};
+  final timings = json["timings"] is Map ? json["timings"] as Map : const {};
+  final details = usage["completion_tokens_details"] is Map
+      ? usage["completion_tokens_details"] as Map
+      : const {};
+  final promptDetails = usage["prompt_tokens_details"] is Map
+      ? usage["prompt_tokens_details"] as Map
+      : const {};
+  num? n(Object? value) => value is num ? value : null;
+  final result = <String, dynamic>{
+    if (n(usage["prompt_tokens"] ?? timings["prompt_n"]) != null)
+      "promptTokens": n(usage["prompt_tokens"] ?? timings["prompt_n"])!.toInt(),
+    if (n(usage["completion_tokens"] ?? timings["predicted_n"]) != null)
+      "tokens":
+          n(usage["completion_tokens"] ?? timings["predicted_n"])!.toInt(),
+    if (n(promptDetails["cached_tokens"]) != null &&
+        promptDetails["cached_tokens"] > 0)
+      "cachedTokens": n(promptDetails["cached_tokens"])!.toInt(),
+    if (n(details["reasoning_tokens"]) != null &&
+        details["reasoning_tokens"] > 0)
+      "reasoningTokens": n(details["reasoning_tokens"])!.toInt(),
+    if (n(timings["prompt_ms"]) != null)
+      "promptMs": n(timings["prompt_ms"])!.round(),
+    if (n(timings["predicted_ms"]) != null)
+      "genMs": n(timings["predicted_ms"])!.round(),
+  };
+  return result.isEmpty ? null : result;
 }
 
 class LlmException implements Exception {
@@ -170,6 +232,9 @@ Future<List<String>> listOpenAiModels(
 /// Only a [cancellable] request is stopped by [cancelGeneration]; background
 /// requests (titles, punctuation) leave the cancellation state alone so they
 /// can't interfere with the answer that is currently streaming.
+// Whether OpenAI-compatible servers are asked to report token usage.
+bool _streamUsage = true;
+
 Stream<LlmDelta> chatStream({
   required String model,
   required List<LlmMessage> messages,
@@ -204,6 +269,7 @@ Stream<LlmDelta> chatStream({
     body = {
       "model": model,
       "stream": true,
+      if (_streamUsage) "stream_options": {"include_usage": true},
       "messages": messages.map(_toOpenAiMessage).toList(),
     };
   } else {
@@ -243,7 +309,8 @@ Stream<LlmDelta> chatStream({
   } catch (e) {
     release();
     if (cancelled()) return;
-    throw LlmException("Couldn't reach ${uri.host}:${uri.port} (${describeNetworkError(e)})");
+    throw LlmException(
+        "Couldn't reach ${uri.host}:${uri.port} (${describeNetworkError(e)})");
   }
 
   if (response.statusCode != 200) {
@@ -252,6 +319,19 @@ Stream<LlmDelta> chatStream({
       text = await response.stream.bytesToString().timeout(idleTimeout);
     } catch (_) {}
     release();
+    // a few servers reject stream_options; ask them without it from now on
+    if (openAi &&
+        _streamUsage &&
+        response.statusCode == 400 &&
+        text.contains("stream_options")) {
+      _streamUsage = false;
+      yield* chatStream(
+          model: model,
+          messages: messages,
+          provider: provider,
+          cancellable: cancellable);
+      return;
+    }
     throw LlmException(
         "Server returned HTTP ${response.statusCode}: ${extractServerError(text)}");
   }
@@ -275,13 +355,15 @@ Stream<LlmDelta> chatStream({
         if (json["error"] != null) {
           throw LlmException(extractServerError(payload));
         }
+        final usage = openAiUsage(json);
+        if (usage != null) yield LlmDelta(usage: usage);
         final choices = json["choices"];
         if (choices is! List || choices.isEmpty) continue;
         final delta = (choices.first as Map)["delta"] as Map? ?? {};
         final content = delta["content"]?.toString() ?? "";
-        final thinking = (delta["reasoning_content"] ?? delta["reasoning"])
-                ?.toString() ??
-            "";
+        final thinking =
+            (delta["reasoning_content"] ?? delta["reasoning"])?.toString() ??
+                "";
         if (content.isNotEmpty || thinking.isNotEmpty) {
           yield LlmDelta(content: content, thinking: thinking);
         }
@@ -297,7 +379,11 @@ Stream<LlmDelta> chatStream({
         if (content.isNotEmpty || thinking.isNotEmpty) {
           yield LlmDelta(content: content, thinking: thinking);
         }
-        if (json["done"] == true) break;
+        if (json["done"] == true) {
+          final usage = ollamaUsage(json);
+          if (usage != null) yield LlmDelta(usage: usage);
+          break;
+        }
       }
     }
   } on _StreamTimeout catch (e) {
