@@ -20,6 +20,7 @@ import 'worker/clients.dart';
 import 'worker/chat_store.dart';
 import 'worker/composer.dart';
 import 'worker/llm.dart';
+import 'worker/servers.dart';
 import 'worker/message_actions.dart';
 import 'worker/message_stats.dart';
 import 'worker/read_aloud.dart';
@@ -68,7 +69,6 @@ const bool allowMultipleChats = true;
 SharedPreferences? prefs;
 
 String? model;
-String? host;
 
 bool multimodal = false;
 
@@ -771,14 +771,14 @@ class _MainAppState extends State<MainApp> {
 
         setState(() {
           model = useModel ? fixedModel : prefs!.getString("model");
-          modelProvider =
-              prefs!.getString("modelProvider") ?? providerOllama;
+          // older versions stored "ollama" or "openai" instead of an id
+          final stored = prefs!.getString("modelProvider");
+          modelProvider = serverById(stored)?.id ?? stored ?? legacyOllamaId;
           chatAllowed = !(model == null);
           multimodal = prefs?.getBool("multimodal") ?? false;
-          host = useHost ? fixedHost : prefs?.getString("host");
         });
 
-        if (host == null) {
+        if (llmServers.isEmpty) {
           // ignore: use_build_context_synchronously
           ScaffoldMessenger.of(context).showSnackBar(SnackBar(
               // ignore: use_build_context_synchronously
@@ -800,7 +800,7 @@ class _MainAppState extends State<MainApp> {
     Widget selector = InkWell(
         onTap: !useModel
             ? () {
-                if (host == null && !openAiConfigured) {
+                if (llmServers.isEmpty) {
                   ScaffoldMessenger.of(context).showSnackBar(SnackBar(
                       content:
                           Text(AppLocalizations.of(context)!.noHostSelected),
@@ -821,13 +821,33 @@ class _MainAppState extends State<MainApp> {
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   Flexible(
-                      child: Text(
-                          (model ??
-                                  AppLocalizations.of(context)!.noSelectedModel)
-                              .split(":")[0],
-                          overflow: TextOverflow.fade,
-                          style: const TextStyle(
-                              fontFamily: "monospace", fontSize: 16))),
+                      child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          crossAxisAlignment: CrossAxisAlignment.center,
+                          children: [
+                        Text(
+                            (model ??
+                                    AppLocalizations.of(context)!
+                                        .noSelectedModel)
+                                .split(":")[0],
+                            overflow: TextOverflow.fade,
+                            softWrap: false,
+                            style: const TextStyle(
+                                fontFamily: "monospace", fontSize: 16)),
+                        // with several servers, say which one answers
+                        if (model != null &&
+                            llmServers.length > 1 &&
+                            modelServer != null)
+                          Text(modelServer!.displayName,
+                              overflow: TextOverflow.fade,
+                              softWrap: false,
+                              style: TextStyle(
+                                  fontSize: 11,
+                                  color: Theme.of(context)
+                                      .colorScheme
+                                      .onSurface
+                                      .withAlpha(150))),
+                      ])),
                   useModel
                       ? const SizedBox.shrink()
                       : const Icon(Icons.expand_more_rounded)
@@ -1299,7 +1319,7 @@ class _MainAppState extends State<MainApp> {
                               customBottomWidget: ChatComposer(
                                   generating: !chatAllowed && model != null,
                                   imagesSupported: multimodal ||
-                                      modelProvider == providerOpenAi,
+                                      !(modelServer?.isOllama ?? true),
                                   thinkingSupported: modelCanThink(),
                                   onVoiceMode: (prefs?.getBool(
                                                   "voiceModeEnabled") ??

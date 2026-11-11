@@ -7,6 +7,7 @@ import 'chat_store.dart';
 import 'composer.dart';
 import 'haptic.dart';
 import 'llm.dart';
+import 'servers.dart';
 import 'setter.dart';
 import 'thinking.dart';
 import '../main.dart';
@@ -189,10 +190,8 @@ Future<String> send(String value, BuildContext context, Function setState,
     if (onStream != null) onStream("", true);
   }
 
-  if (modelProvider == providerOpenAi ? !openAiConfigured : host == null) {
-    abort(modelProvider == providerOpenAi
-        ? l10n.noOpenAiHostSelected
-        : l10n.noHostSelected);
+  if (modelServer == null) {
+    abort(llmServers.isEmpty ? l10n.noHostSelected : l10n.modelServerMissing);
     return "";
   }
   if (!chatAllowed || model == null) {
@@ -256,7 +255,8 @@ Future<String> send(String value, BuildContext context, Function setState,
   String? error;
   // statistics shown by the message's info button
   final String usedModel = model!;
-  final String usedProvider = modelProvider;
+  final String usedProvider = modelServer!.id;
+  final String usedServer = modelServer!.displayName;
   final clock = Stopwatch()..start();
   int? firstTokenMs;
   Map<String, dynamic> serverUsage = {};
@@ -279,6 +279,7 @@ Future<String> send(String value, BuildContext context, Function setState,
   Map<String, dynamic> usage({required bool stopped}) => {
         "model": usedModel,
         "provider": usedProvider,
+        "server": usedServer,
         ...serverUsage,
         if (firstTokenMs != null) "firstTokenMs": firstTokenMs,
         "totalMs": clock.elapsedMilliseconds,

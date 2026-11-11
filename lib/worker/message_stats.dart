@@ -65,9 +65,11 @@ void showMessageStats(BuildContext context, types.Message message) {
     if (usage["model"] != null)
       (
         l10n.statsModel,
-        provider == providerOpenAi
-            ? "${usage["model"]} (OpenAI)"
-            : usage["model"].toString()
+        usage["server"] != null
+            ? "${usage["model"]} (${usage["server"]})"
+            : provider == providerOpenAi
+                ? "${usage["model"]} (OpenAI)"
+                : usage["model"].toString()
       ),
     if (speed != null)
       (

@@ -770,4 +770,107 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get thinkingToggleOff => 'Thinking off: tap to let the model think first';
+
+  @override
+  String get settingsServers => 'Servers';
+
+  @override
+  String get settingsServersEmpty => 'No server yet. Add your Ollama server or any OpenAI-compatible server (vLLM, LM Studio, llama.cpp, ...).';
+
+  @override
+  String get serverAdd => 'Add server';
+
+  @override
+  String get serverNew => 'New server';
+
+  @override
+  String get serverEdit => 'Edit server';
+
+  @override
+  String get serverDelete => 'Delete server';
+
+  @override
+  String serverDeleteTitle(String server) {
+    return 'Delete $server?';
+  }
+
+  @override
+  String get serverDeleteDescription => 'Its models disappear from the model picker. Chats stay, but can\'t continue with its models until you pick another one.';
+
+  @override
+  String get serverName => 'Name';
+
+  @override
+  String get serverNameDescription => 'Optional. Shown in the model picker; the address is used if empty.';
+
+  @override
+  String get serverTypeOllama => 'Ollama';
+
+  @override
+  String get serverTypeOpenAi => 'OpenAI-compatible';
+
+  @override
+  String get serverTypeOpenAiShort => 'OpenAI API';
+
+  @override
+  String get serverUrl => 'Address';
+
+  @override
+  String get serverKeyDescription => 'Optional. Sent as a Bearer token.';
+
+  @override
+  String get serverHeaders => 'Headers';
+
+  @override
+  String get serverHeaderName => 'Header';
+
+  @override
+  String get serverHeaderValue => 'Value';
+
+  @override
+  String get serverHeaderAdd => 'Add header';
+
+  @override
+  String get serverHeaderRemove => 'Remove header';
+
+  @override
+  String get serverTest => 'Test connection';
+
+  @override
+  String get serverRecheck => 'Check again';
+
+  @override
+  String get modelServerMissing => 'The server of this model was removed. Pick another model.';
+
+  @override
+  String get modelPickerSearch => 'Search models';
+
+  @override
+  String get modelPickerClearSearch => 'Clear search';
+
+  @override
+  String get modelPickerAllServers => 'All';
+
+  @override
+  String get modelPickerNoModels => 'No models on this server';
+
+  @override
+  String modelPickerNoMatch(String query) {
+    return 'No model matches "$query"';
+  }
+
+  @override
+  String get modelPickerRetry => 'Try again';
+
+  @override
+  String get modelPickerVision => 'Understands images';
+
+  @override
+  String get modelPickerThinking => 'Can think before answering';
+
+  @override
+  String get modelPickerPull => 'Download a model';
+
+  @override
+  String get modelPickerPullTarget => 'Download onto which server?';
 }

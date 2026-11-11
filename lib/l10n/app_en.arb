@@ -1176,5 +1176,147 @@
     "thinkingToggleOff": "Thinking off: tap to let the model think first",
     "@thinkingToggleOff": {
         "description": "Tooltip of the composer button while reasoning is switched off"
+    },
+    "settingsServers": "Servers",
+    "@settingsServers": {
+        "description": "Title above the list of LLM servers in the settings"
+    },
+    "settingsServersEmpty": "No server yet. Add your Ollama server or any OpenAI-compatible server (vLLM, LM Studio, llama.cpp, ...).",
+    "@settingsServersEmpty": {
+        "description": "Shown when no LLM server is configured"
+    },
+    "serverAdd": "Add server",
+    "@serverAdd": {
+        "description": "Button that adds an LLM server"
+    },
+    "serverNew": "New server",
+    "@serverNew": {
+        "description": "Title when adding an LLM server"
+    },
+    "serverEdit": "Edit server",
+    "@serverEdit": {
+        "description": "Title when editing an LLM server"
+    },
+    "serverDelete": "Delete server",
+    "@serverDelete": {
+        "description": "Tooltip of the button that deletes an LLM server"
+    },
+    "serverDeleteTitle": "Delete {server}?",
+    "@serverDeleteTitle": {
+        "description": "Title of the dialog confirming that an LLM server is deleted",
+        "placeholders": {
+            "server": {
+                "type": "String"
+            }
+        }
+    },
+    "serverDeleteDescription": "Its models disappear from the model picker. Chats stay, but can't continue with its models until you pick another one.",
+    "@serverDeleteDescription": {
+        "description": "Text of the dialog confirming that an LLM server is deleted"
+    },
+    "serverName": "Name",
+    "@serverName": {
+        "description": "Label of the name field of an LLM server"
+    },
+    "serverNameDescription": "Optional. Shown in the model picker; the address is used if empty.",
+    "@serverNameDescription": {
+        "description": "Explanation of the name field of an LLM server"
+    },
+    "serverTypeOllama": "Ollama",
+    "@serverTypeOllama": {
+        "description": "Server type: Ollama"
+    },
+    "serverTypeOpenAi": "OpenAI-compatible",
+    "@serverTypeOpenAi": {
+        "description": "Server type: a server speaking the OpenAI API"
+    },
+    "serverTypeOpenAiShort": "OpenAI API",
+    "@serverTypeOpenAiShort": {
+        "description": "Short label of the OpenAI-compatible server type in the server list"
+    },
+    "serverUrl": "Address",
+    "@serverUrl": {
+        "description": "Label of the URL field of an LLM server"
+    },
+    "serverKeyDescription": "Optional. Sent as a Bearer token.",
+    "@serverKeyDescription": {
+        "description": "Explanation of the API key field of an LLM server"
+    },
+    "serverHeaders": "Headers",
+    "@serverHeaders": {
+        "description": "Title above the extra request headers of an LLM server"
+    },
+    "serverHeaderName": "Header",
+    "@serverHeaderName": {
+        "description": "Label of a header name field"
+    },
+    "serverHeaderValue": "Value",
+    "@serverHeaderValue": {
+        "description": "Label of a header value field"
+    },
+    "serverHeaderAdd": "Add header",
+    "@serverHeaderAdd": {
+        "description": "Button that adds a request header"
+    },
+    "serverHeaderRemove": "Remove header",
+    "@serverHeaderRemove": {
+        "description": "Tooltip of the button that removes a request header"
+    },
+    "serverTest": "Test connection",
+    "@serverTest": {
+        "description": "Button that checks whether an LLM server answers"
+    },
+    "serverRecheck": "Check again",
+    "@serverRecheck": {
+        "description": "Tooltip of the button that checks a server's connection again"
+    },
+    "modelServerMissing": "The server of this model was removed. Pick another model.",
+    "@modelServerMissing": {
+        "description": "Shown when sending with a model whose server was deleted"
+    },
+    "modelPickerSearch": "Search models",
+    "@modelPickerSearch": {
+        "description": "Hint of the search field in the model picker"
+    },
+    "modelPickerClearSearch": "Clear search",
+    "@modelPickerClearSearch": {
+        "description": "Tooltip of the button that clears the model search"
+    },
+    "modelPickerAllServers": "All",
+    "@modelPickerAllServers": {
+        "description": "Filter chip showing the models of all servers"
+    },
+    "modelPickerNoModels": "No models on this server",
+    "@modelPickerNoModels": {
+        "description": "Shown when a server has no models"
+    },
+    "modelPickerNoMatch": "No model matches \"{query}\"",
+    "@modelPickerNoMatch": {
+        "description": "Shown when the model search finds nothing",
+        "placeholders": {
+            "query": {
+                "type": "String"
+            }
+        }
+    },
+    "modelPickerRetry": "Try again",
+    "@modelPickerRetry": {
+        "description": "Tooltip of the button that loads a server's models again"
+    },
+    "modelPickerVision": "Understands images",
+    "@modelPickerVision": {
+        "description": "Tooltip of the image icon of a model"
+    },
+    "modelPickerThinking": "Can think before answering",
+    "@modelPickerThinking": {
+        "description": "Tooltip of the thinking icon of a model"
+    },
+    "modelPickerPull": "Download a model",
+    "@modelPickerPull": {
+        "description": "Button in the model picker that downloads a model onto an Ollama server"
+    },
+    "modelPickerPullTarget": "Download onto which server?",
+    "@modelPickerPullTarget": {
+        "description": "Title of the dialog choosing the Ollama server to download a model onto"
     }
 }

@@ -1,5 +1,3 @@
-import 'dart:convert';
-
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
 
@@ -9,9 +7,10 @@ import 'desktop.dart';
 import 'haptic.dart';
 import '../main.dart';
 import 'sender.dart';
-import 'theme.dart';
 import 'clients.dart';
 import 'llm.dart';
+import 'model_picker.dart';
+import 'servers.dart';
 
 import 'package:ollama_app/l10n/gen/app_localizations.dart';
 
@@ -22,332 +21,61 @@ import 'package:flutter_chat_types/flutter_chat_types.dart' as types;
 import 'package:http/http.dart' as http;
 
 void setModel(BuildContext context, Function setState) {
-  List<String> models = [];
-  List<String> modelsReal = [];
-  List<bool> modal = [];
-  List<String> providers = [];
-  int usedIndex = -1;
-  int oldIndex = -1;
-  int addIndex = -1;
-  bool loaded = false;
-  Function? setModalState;
-  desktopTitleVisible = false;
-  setState(() {});
-  void load() async {
-    try {
-      bool anyServerReachable = false;
-      if (host != null) {
-        try {
-          var list = await ollamaClient.listModels().timeout(Duration(
-              seconds: (10.0 * (prefs!.getDouble("timeoutMultiplier") ?? 1.0))
-                  .round()));
-          anyServerReachable = true;
-          for (var i = 0; i < list.models!.length; i++) {
-            bool vision = (list.models![i].details!.families ?? [])
-                .contains("clip");
-            try {
-              var details = await ollamaClient.showModelInfo(
-                  request:
-                      llama.ModelInfoRequest(model: list.models![i].model!));
-              final capabilities = details.capabilities ?? [];
-              vision = vision ||
-                  capabilities.contains(llama.Capability.vision);
-              rememberThinkingSupport(list.models![i].model!,
-                  capabilities.contains(llama.Capability.thinking));
-            } catch (_) {}
-            models.add(list.models![i].model!.split(":")[0]);
-            modelsReal.add(list.models![i].model!);
-            modal.add(vision);
-            providers.add(providerOllama);
-          }
-        } catch (_) {}
-      }
-      if (openAiConfigured) {
-        try {
-          var list = await listOpenAiModels();
-          anyServerReachable = true;
-          for (var id in list) {
-            models.add(id);
-            modelsReal.add(id);
-            // capabilities are unknown for OpenAI-compatible servers
-            modal.add(true);
-            providers.add(providerOpenAi);
-          }
-        } catch (_) {}
-      }
-      if (!anyServerReachable) throw Exception("no server reachable");
-
-      addIndex = models.length;
-      // ignore: use_build_context_synchronously
-      models.add(AppLocalizations.of(context)!.modelDialogAddModel);
-      // ignore: use_build_context_synchronously
-      modelsReal.add(AppLocalizations.of(context)!.modelDialogAddModel);
-      modal.add(false);
-      providers.add(providerOllama);
-
-      for (var i = 0; i < modelsReal.length; i++) {
-        if (modelsReal[i] == model && providers[i] == modelProvider) {
-          usedIndex = i;
-          oldIndex = usedIndex;
-        }
-      }
-      if (prefs!.getBool("modelTags") == null) {
-        List duplicateFinder = [];
-        for (var model in models) {
-          if (duplicateFinder.contains(model)) {
-            prefs!.setBool("modelTags", true);
-            break;
-          } else {
-            duplicateFinder.add(model);
-          }
-        }
-      }
-      loaded = true;
-      setModalState!(() {});
-    } catch (_) {
-      setState(() {
-        desktopTitleVisible = true;
-      });
-      // ignore: use_build_context_synchronously
-      Navigator.of(context).pop();
-      // ignore: use_build_context_synchronously
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text(
-              // ignore: use_build_context_synchronously
-              AppLocalizations.of(context)!.settingsHostInvalid("timeout")),
-          showCloseIcon: true));
-    }
-  }
-
   if (useModel) return;
   selectionHaptic();
+  desktopTitleVisible = false;
+  setState(() {});
+  showModelPicker(context,
+      onSelected: (picked) => selectModel(context, setState, picked),
+      onPull: (server) => addModel(context, setState, server),
+      onClosed: () => setState(() => desktopTitleVisible = true));
+}
 
-  load();
-
-  var content = StatefulBuilder(builder: (context, setLocalState) {
-    setModalState = setLocalState;
-    return PopScope(
-        canPop: false,
-        onPopInvokedWithResult: (didPop, result) async {
-          if (!loaded) return;
-          loaded = false;
-          bool preload = false;
-          if (usedIndex >= 0 &&
-              (modelsReal[usedIndex] != model ||
-                  providers[usedIndex] != modelProvider)) {
-            preload = true;
-            if (prefs!.getBool("resetOnModelSelect") ??
-                true && allowMultipleChats) {
-              messages = [];
-              chatUuid = null;
-            }
-          }
-          model = (usedIndex >= 0) ? modelsReal[usedIndex] : null;
-          chatAllowed = !(model == null);
-          multimodal = (usedIndex >= 0) ? modal[usedIndex] : false;
-          modelProvider =
-              (usedIndex >= 0) ? providers[usedIndex] : providerOllama;
-          if (model != null) {
-            prefs?.setString("model", model!);
-          } else {
-            prefs?.remove("model");
-          }
-          prefs?.setBool("multimodal", multimodal);
-          prefs?.setString("modelProvider", modelProvider);
-
-          if (model != null &&
-              preload &&
-              modelProvider == providerOllama &&
-              int.parse(prefs!.getString("keepAlive") ?? "300") != 0 &&
-              (prefs!.getBool("preloadModel") ?? true)) {
-            setLocalState(() {});
-            try {
-              // don't use llama client, package doesn't support just loading without content
-              await httpClient
-                  .post(
-                    Uri.parse("$host/api/generate"),
-                    headers: {
-                      "Content-Type": "application/json",
-                      ...(jsonDecode(prefs!.getString("hostHeaders") ?? "{}")
-                          as Map)
-                    }.cast<String, String>(),
-                    body: jsonEncode({
-                      "model": model!,
-                      "keep_alive":
-                          int.parse(prefs!.getString("keepAlive") ?? "300")
-                    }),
-                  )
-                  .timeout(Duration(
-                      seconds: (10.0 *
-                              (prefs!.getDouble("timeoutMultiplier") ?? 1.0))
-                          .round()));
-            } catch (_) {
-              // ignore: use_build_context_synchronously
-              ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-                  // ignore: use_build_context_synchronously
-                  content: Text(AppLocalizations.of(context)!
-                      .settingsHostInvalid("timeout")),
-                  showCloseIcon: true));
-              setState(() {
-                model = null;
-                chatAllowed = false;
-              });
-            }
-            setState(() {
-              desktopTitleVisible = true;
-            });
-            // ignore: use_build_context_synchronously
-            Navigator.of(context).pop();
-          } else {
-            setState(() {
-              desktopTitleVisible = true;
-            });
-            try {
-              Navigator.of(context).pop();
-            } catch (_) {}
-          }
-        },
-        child: Container(
-            width: desktopLayout(context) ? null : double.infinity,
-            padding: EdgeInsets.only(
-                left: 16,
-                right: 16,
-                top: 16,
-                bottom: desktopLayout(context) ? 16 : 0),
-            child: (!loaded)
-                ? SizedBox(
-                    width: desktopLayout(context) ? 300 : double.infinity,
-                    child: const LinearProgressIndicator())
-                : Column(mainAxisSize: MainAxisSize.min, children: [
-                    Container(
-                        width: desktopLayout(context) ? 300 : double.infinity,
-                        constraints: BoxConstraints(
-                            maxHeight:
-                                MediaQuery.of(context).size.height * 0.4),
-                        child: SingleChildScrollView(
-                            scrollDirection: Axis.vertical,
-                            child: Wrap(
-                              spacing: desktopLayout(context) ? 10.0 : 5.0,
-                              runSpacing:
-                                  desktopFeature(web: true) ? 10.0 : 0.0,
-                              alignment: WrapAlignment.center,
-                              children: List<Widget>.generate(
-                                models.length,
-                                (int index) {
-                                  return ChoiceChip(
-                                    label: Row(
-                                        mainAxisSize: MainAxisSize.min,
-                                        children: [
-                                          Text(models[index]),
-                                          ((prefs!.getBool("modelTags") ??
-                                                      false) &&
-                                                  modelsReal[index]
-                                                          .split(":")
-                                                          .length >
-                                                      1)
-                                              ? Text(
-                                                  ":${modelsReal[index].split(":")[1]}",
-                                                  style: const TextStyle(
-                                                      color: Colors.grey))
-                                              : const SizedBox.shrink()
-                                        ]),
-                                    selected: usedIndex == index,
-                                    avatar: (usedIndex == index)
-                                        ? null
-                                        : (addIndex == index)
-                                            ? const Icon(Icons.add_rounded)
-                                            : (providers[index] ==
-                                                    providerOpenAi)
-                                                ? const Icon(Icons.dns_rounded)
-                                                : ((recommendedModels
-                                                    .contains(models[index]))
-                                                ? const Icon(Icons.star_rounded)
-                                                : ((modal[index])
-                                                    ? const Icon(Icons
-                                                        .collections_rounded)
-                                                    : null)),
-                                    checkmarkColor: (usedIndex == index &&
-                                            !(prefs?.getBool(
-                                                    "useDeviceTheme") ??
-                                                false))
-                                        ? ((MediaQuery.of(context)
-                                                    .platformBrightness ==
-                                                Brightness.light)
-                                            ? themeLight().colorScheme.secondary
-                                            : themeDark().colorScheme.secondary)
-                                        : null,
-                                    labelStyle: (usedIndex == index &&
-                                            !(prefs?.getBool(
-                                                    "useDeviceTheme") ??
-                                                false))
-                                        ? TextStyle(
-                                            color: (MediaQuery.of(context)
-                                                        .platformBrightness ==
-                                                    Brightness.light)
-                                                ? themeLight()
-                                                    .colorScheme
-                                                    .secondary
-                                                : themeDark()
-                                                    .colorScheme
-                                                    .secondary)
-                                        : null,
-                                    selectedColor: (prefs
-                                                ?.getBool("useDeviceTheme") ??
-                                            false)
-                                        ? null
-                                        : (MediaQuery.of(context)
-                                                    .platformBrightness ==
-                                                Brightness.light)
-                                            ? themeLight().colorScheme.primary
-                                            : themeDark().colorScheme.primary,
-                                    onSelected: (bool selected) {
-                                      selectionHaptic();
-                                      if (addIndex == index) {
-                                        usedIndex = oldIndex;
-                                        Navigator.of(context).pop();
-                                        addModel(context, setState);
-                                      }
-                                      if (!chatAllowed && model != null) {
-                                        return;
-                                      }
-                                      setLocalState(() {
-                                        usedIndex = selected ? index : -1;
-                                      });
-                                    },
-                                  );
-                                },
-                              ).toList(),
-                            )))
-                  ])));
+/// Makes [picked] the model of the current (or, if wanted, a new) chat.
+void selectModel(
+    BuildContext context, Function setState, ServerModel picked) async {
+  final changed = picked.name != model || picked.server.id != modelServer?.id;
+  if (changed &&
+      (prefs!.getBool("resetOnModelSelect") ?? true) &&
+      allowMultipleChats) {
+    messages = [];
+    chatUuid = null;
+  }
+  setState(() {
+    model = picked.name;
+    modelProvider = picked.server.id;
+    multimodal = picked.vision;
+    chatAllowed = true;
   });
+  prefs?.setString("model", picked.name);
+  prefs?.setString("modelProvider", picked.server.id);
+  prefs?.setBool("multimodal", multimodal);
 
-  if (desktopLayoutNotRequired(context)) {
-    showDialog(
-        context: context,
-        builder: (context) {
-          return Transform.translate(
-            offset: desktopLayoutRequired(context)
-                ? const Offset(289, 0)
-                : const Offset(0, 0),
-            child: Dialog(
-                surfaceTintColor:
-                    (Theme.of(context).brightness == Brightness.dark)
-                        ? Colors.grey[800]
-                        : null,
-                alignment: desktopLayoutRequired(context)
-                    ? Alignment.topLeft
-                    : Alignment.topCenter,
-                child: content),
-          );
-        });
-  } else {
-    showModalBottomSheet(
-        context: context,
-        builder: (context) => SafeArea(top: false, child: content));
+  if (!changed ||
+      !picked.server.isOllama ||
+      int.parse(prefs!.getString("keepAlive") ?? "300") == 0 ||
+      !(prefs!.getBool("preloadModel") ?? true)) {
+    return;
+  }
+  final messenger = ScaffoldMessenger.of(context);
+  final failedText = AppLocalizations.of(context)!.settingsHostInvalid("timeout");
+  try {
+    await preloadModel(picked.server, picked.name);
+  } catch (_) {
+    // another model was picked meanwhile
+    if (model != picked.name || modelProvider != picked.server.id) return;
+    messenger.showSnackBar(
+        SnackBar(content: Text(failedText), showCloseIcon: true));
+    setState(() {
+      model = null;
+      chatAllowed = false;
+    });
   }
 }
 
-void addModel(BuildContext context, Function setState) async {
+void addModel(
+    BuildContext context, Function setState, LlmServer server) async {
+  final ollamaClient = ollamaClientFor(server);
   bool canceled = false;
   bool networkError = false;
   bool ratelimitError = false;
@@ -597,7 +325,7 @@ void addModel(BuildContext context, Function setState) async {
       }
       return;
     }
-    modelProvider = providerOllama;
+    modelProvider = server.id;
     prefs?.setString("model", model!);
     prefs?.setString("modelProvider", modelProvider);
     prefs?.setBool("multimodal", multimodal);
@@ -723,7 +451,9 @@ void loadChat(String uuid, Function setState) async {
   if (chatUuid != uuid) return;
   messages = stored.reversed.map(chatMessage).toList();
   model = chat.model;
-  modelProvider = chat.provider ?? providerOllama;
+  // chats of older versions store "ollama", "openai" or nothing
+  modelProvider =
+      serverById(chat.provider)?.id ?? chat.provider ?? legacyOllamaId;
   setState(() {});
   refreshThinkingSupport(setState);
 }
@@ -732,16 +462,17 @@ void loadChat(String uuid, Function setState) async {
 /// the thinking toggle even before the model list was ever opened.
 void refreshThinkingSupport(Function setState) async {
   final name = model;
-  if (name == null || modelProvider != providerOllama || host == null) return;
+  final server = modelServer;
+  if (name == null || server == null || !server.isOllama) return;
   try {
-    final details = await ollamaClient
+    final details = await ollamaClientFor(server)
         .showModelInfo(request: llama.ModelInfoRequest(model: name))
         .timeout(Duration(
             seconds: (10.0 * (prefs!.getDouble("timeoutMultiplier") ?? 1.0))
                 .round()));
     final supported =
         (details.capabilities ?? []).contains(llama.Capability.thinking);
-    if (supported == modelCanThink(name, providerOllama)) return;
+    if (supported == modelCanThink(name, server.id)) return;
     rememberThinkingSupport(name, supported);
     setState(() {});
   } catch (_) {}

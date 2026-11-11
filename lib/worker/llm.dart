@@ -12,12 +12,15 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 
 import '../main.dart';
+import 'servers.dart';
 
-const String providerOllama = "ollama";
-const String providerOpenAi = "openai";
+/// What older versions stored as an answer's "provider" for the
+/// OpenAI-compatible server; still read by the statistics of old answers.
+const String providerOpenAi = legacyOpenAiId;
 
-/// Provider of the currently selected [model].
-String modelProvider = providerOllama;
+/// Id of the server of the selected [model] (see [LlmServer]). Older
+/// versions stored "ollama" or "openai" here; [serverById] resolves those.
+String modelProvider = legacyOllamaId;
 
 // ---------------------------------------------------------------------------
 // thinking
@@ -38,10 +41,10 @@ void rememberThinkingSupport(String model, bool supported) {
 
 /// Whether the selected model can be told to think or not. Only Ollama
 /// exposes this; OpenAI-compatible servers just get whatever the model does.
-bool modelCanThink([String? name, String? provider]) {
+bool modelCanThink([String? name, String? serverId]) {
   name ??= model;
-  provider ??= modelProvider;
-  return provider == providerOllama &&
+  serverId ??= modelProvider;
+  return (serverById(serverId)?.isOllama ?? false) &&
       name != null &&
       thinkingModels.contains(name);
 }
@@ -146,20 +149,6 @@ Duration get firstResponseTimeout =>
 Duration get idleTimeout =>
     Duration(seconds: (60.0 * _timeoutMultiplier).round());
 
-Map<String, String> ollamaHeaders() => {
-      "Content-Type": "application/json",
-      ...(jsonDecode(prefs?.getString("hostHeaders") ?? "{}") as Map)
-          .cast<String, String>()
-    };
-
-String? get openAiBaseUrl {
-  var value = (prefs?.getString("openaiHost") ?? "").trim();
-  if (value.isEmpty) return null;
-  return normalizeOpenAiBaseUrl(value);
-}
-
-bool get openAiConfigured => openAiBaseUrl != null;
-
 /// Accepts "http://rig:8000", "http://rig:8000/" or "http://rig:8000/v1" and
 /// returns the base that "/chat/completions" and "/models" are appended to.
 String normalizeOpenAiBaseUrl(String value) {
@@ -172,14 +161,6 @@ String normalizeOpenAiBaseUrl(String value) {
     value = "$value/v1";
   }
   return value;
-}
-
-Map<String, String> openAiHeaders({String? apiKey}) {
-  apiKey ??= prefs?.getString("openaiKey") ?? "";
-  return {
-    "Content-Type": "application/json",
-    if (apiKey.trim().isNotEmpty) "Authorization": "Bearer ${apiKey.trim()}"
-  };
 }
 
 // ---------------------------------------------------------------------------
@@ -197,30 +178,6 @@ void cancelGeneration() {
 }
 
 bool get generationCancelled => _cancelRequested;
-
-// ---------------------------------------------------------------------------
-// model listing
-
-Future<List<String>> listOpenAiModels(
-    {String? baseUrl, String? apiKey, Duration? timeout}) async {
-  baseUrl ??= openAiBaseUrl;
-  if (baseUrl == null) return [];
-  final response = await http
-      .get(Uri.parse("$baseUrl/models"), headers: openAiHeaders(apiKey: apiKey))
-      .timeout(timeout ?? Duration(seconds: (10 * _timeoutMultiplier).round()));
-  if (response.statusCode != 200) {
-    throw LlmException(
-        "HTTP ${response.statusCode}: ${extractServerError(response.body)}");
-  }
-  final data = jsonDecode(utf8.decode(response.bodyBytes));
-  final list = (data is Map ? data["data"] : data) as List? ?? [];
-  final ids = list
-      .map((e) => (e is Map ? e["id"] : e)?.toString())
-      .whereType<String>()
-      .toList();
-  ids.sort();
-  return ids;
-}
 
 // ---------------------------------------------------------------------------
 // chat
@@ -242,6 +199,12 @@ Stream<LlmDelta> chatStream({
   bool cancellable = true,
 }) async* {
   provider ??= modelProvider;
+  final server = serverById(provider);
+  if (server == null) {
+    throw LlmException(llmServers.isEmpty
+        ? "No server is configured. Add one in the settings."
+        : "The server of this model was removed. Pick another model.");
+  }
   final client = http.Client();
   if (cancellable) {
     _cancelRequested = false;
@@ -253,19 +216,13 @@ Stream<LlmDelta> chatStream({
     if (identical(_activeClient, client)) _activeClient = null;
   }
 
-  final bool openAi = provider == providerOpenAi;
+  final bool openAi = !server.isOllama;
   final Uri uri;
-  final Map<String, String> headers;
+  final Map<String, String> headers = server.requestHeaders;
   final Map<String, dynamic> body;
 
   if (openAi) {
-    final base = openAiBaseUrl;
-    if (base == null) {
-      release();
-      throw const LlmException("No OpenAI-compatible server is configured.");
-    }
-    uri = Uri.parse("$base/chat/completions");
-    headers = openAiHeaders();
+    uri = Uri.parse("${server.baseUrl}/chat/completions");
     body = {
       "model": model,
       "stream": true,
@@ -273,12 +230,7 @@ Stream<LlmDelta> chatStream({
       "messages": messages.map(_toOpenAiMessage).toList(),
     };
   } else {
-    if (host == null) {
-      release();
-      throw const LlmException("No Ollama host is configured.");
-    }
-    uri = Uri.parse("$host/api/chat");
-    headers = ollamaHeaders();
+    uri = Uri.parse("${server.baseUrl}/api/chat");
     body = {
       "model": model,
       "stream": true,
@@ -310,7 +262,7 @@ Stream<LlmDelta> chatStream({
     release();
     if (cancelled()) return;
     throw LlmException(
-        "Couldn't reach ${uri.host}:${uri.port} (${describeNetworkError(e)})");
+        "Couldn't reach ${server.displayName} (${describeNetworkError(e)})");
   }
 
   if (response.statusCode != 200) {

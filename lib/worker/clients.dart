@@ -1,10 +1,9 @@
 import 'dart:io';
-import 'dart:convert';
 
 import 'package:http/http.dart' as http;
 import 'package:ollama_dart/ollama_dart.dart' as llama;
 
-import '../main.dart';
+import 'servers.dart';
 
 class OllamaHttpOverrides extends HttpOverrides {
   @override
@@ -15,8 +14,9 @@ class OllamaHttpOverrides extends HttpOverrides {
 }
 
 final httpClient = http.Client();
-llama.OllamaClient get ollamaClient => llama.OllamaClient(
-    headers: (jsonDecode(prefs!.getString("hostHeaders") ?? "{}") as Map)
-        .cast<String, String>(),
-    baseUrl: "$host/api",
+
+/// Client for the native API of the Ollama [server].
+llama.OllamaClient ollamaClientFor(LlmServer server) => llama.OllamaClient(
+    headers: server.authHeaders,
+    baseUrl: "${server.baseUrl}/api",
     client: httpClient);

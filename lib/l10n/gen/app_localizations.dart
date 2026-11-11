@@ -1506,6 +1506,204 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Thinking off: tap to let the model think first'**
   String get thinkingToggleOff;
+
+  /// Title above the list of LLM servers in the settings
+  ///
+  /// In en, this message translates to:
+  /// **'Servers'**
+  String get settingsServers;
+
+  /// Shown when no LLM server is configured
+  ///
+  /// In en, this message translates to:
+  /// **'No server yet. Add your Ollama server or any OpenAI-compatible server (vLLM, LM Studio, llama.cpp, ...).'**
+  String get settingsServersEmpty;
+
+  /// Button that adds an LLM server
+  ///
+  /// In en, this message translates to:
+  /// **'Add server'**
+  String get serverAdd;
+
+  /// Title when adding an LLM server
+  ///
+  /// In en, this message translates to:
+  /// **'New server'**
+  String get serverNew;
+
+  /// Title when editing an LLM server
+  ///
+  /// In en, this message translates to:
+  /// **'Edit server'**
+  String get serverEdit;
+
+  /// Tooltip of the button that deletes an LLM server
+  ///
+  /// In en, this message translates to:
+  /// **'Delete server'**
+  String get serverDelete;
+
+  /// Title of the dialog confirming that an LLM server is deleted
+  ///
+  /// In en, this message translates to:
+  /// **'Delete {server}?'**
+  String serverDeleteTitle(String server);
+
+  /// Text of the dialog confirming that an LLM server is deleted
+  ///
+  /// In en, this message translates to:
+  /// **'Its models disappear from the model picker. Chats stay, but can't continue with its models until you pick another one.'**
+  String get serverDeleteDescription;
+
+  /// Label of the name field of an LLM server
+  ///
+  /// In en, this message translates to:
+  /// **'Name'**
+  String get serverName;
+
+  /// Explanation of the name field of an LLM server
+  ///
+  /// In en, this message translates to:
+  /// **'Optional. Shown in the model picker; the address is used if empty.'**
+  String get serverNameDescription;
+
+  /// Server type: Ollama
+  ///
+  /// In en, this message translates to:
+  /// **'Ollama'**
+  String get serverTypeOllama;
+
+  /// Server type: a server speaking the OpenAI API
+  ///
+  /// In en, this message translates to:
+  /// **'OpenAI-compatible'**
+  String get serverTypeOpenAi;
+
+  /// Short label of the OpenAI-compatible server type in the server list
+  ///
+  /// In en, this message translates to:
+  /// **'OpenAI API'**
+  String get serverTypeOpenAiShort;
+
+  /// Label of the URL field of an LLM server
+  ///
+  /// In en, this message translates to:
+  /// **'Address'**
+  String get serverUrl;
+
+  /// Explanation of the API key field of an LLM server
+  ///
+  /// In en, this message translates to:
+  /// **'Optional. Sent as a Bearer token.'**
+  String get serverKeyDescription;
+
+  /// Title above the extra request headers of an LLM server
+  ///
+  /// In en, this message translates to:
+  /// **'Headers'**
+  String get serverHeaders;
+
+  /// Label of a header name field
+  ///
+  /// In en, this message translates to:
+  /// **'Header'**
+  String get serverHeaderName;
+
+  /// Label of a header value field
+  ///
+  /// In en, this message translates to:
+  /// **'Value'**
+  String get serverHeaderValue;
+
+  /// Button that adds a request header
+  ///
+  /// In en, this message translates to:
+  /// **'Add header'**
+  String get serverHeaderAdd;
+
+  /// Tooltip of the button that removes a request header
+  ///
+  /// In en, this message translates to:
+  /// **'Remove header'**
+  String get serverHeaderRemove;
+
+  /// Button that checks whether an LLM server answers
+  ///
+  /// In en, this message translates to:
+  /// **'Test connection'**
+  String get serverTest;
+
+  /// Tooltip of the button that checks a server's connection again
+  ///
+  /// In en, this message translates to:
+  /// **'Check again'**
+  String get serverRecheck;
+
+  /// Shown when sending with a model whose server was deleted
+  ///
+  /// In en, this message translates to:
+  /// **'The server of this model was removed. Pick another model.'**
+  String get modelServerMissing;
+
+  /// Hint of the search field in the model picker
+  ///
+  /// In en, this message translates to:
+  /// **'Search models'**
+  String get modelPickerSearch;
+
+  /// Tooltip of the button that clears the model search
+  ///
+  /// In en, this message translates to:
+  /// **'Clear search'**
+  String get modelPickerClearSearch;
+
+  /// Filter chip showing the models of all servers
+  ///
+  /// In en, this message translates to:
+  /// **'All'**
+  String get modelPickerAllServers;
+
+  /// Shown when a server has no models
+  ///
+  /// In en, this message translates to:
+  /// **'No models on this server'**
+  String get modelPickerNoModels;
+
+  /// Shown when the model search finds nothing
+  ///
+  /// In en, this message translates to:
+  /// **'No model matches "{query}"'**
+  String modelPickerNoMatch(String query);
+
+  /// Tooltip of the button that loads a server's models again
+  ///
+  /// In en, this message translates to:
+  /// **'Try again'**
+  String get modelPickerRetry;
+
+  /// Tooltip of the image icon of a model
+  ///
+  /// In en, this message translates to:
+  /// **'Understands images'**
+  String get modelPickerVision;
+
+  /// Tooltip of the thinking icon of a model
+  ///
+  /// In en, this message translates to:
+  /// **'Can think before answering'**
+  String get modelPickerThinking;
+
+  /// Button in the model picker that downloads a model onto an Ollama server
+  ///
+  /// In en, this message translates to:
+  /// **'Download a model'**
+  String get modelPickerPull;
+
+  /// Title of the dialog choosing the Ollama server to download a model onto
+  ///
+  /// In en, this message translates to:
+  /// **'Download onto which server?'**
+  String get modelPickerPullTarget;
 }
 
 class _AppLocalizationsDelegate extends LocalizationsDelegate<AppLocalizations> {
